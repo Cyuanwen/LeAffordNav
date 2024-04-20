@@ -6,8 +6,8 @@ pybullet
 trimesh
 pytest
 open3d
-scikit-image
-scikit-fmm
+# scikit-image
+# scikit-fmm
 scikit-learn
 numpy-quaternion
 natsort

@@ -1,0 +1,2 @@
+## update
+- 2024-04-20 /raid/cyw/home-robot/home-robot/src/third_party/detectron2/detectron2 在这个文件夹下面git clone了(detectron2)[https://detectron2.readthedocs.io/en/latest/tutorials/install.html]项目；/raid/home-robot/src/home_robot/home_robot/perception/detection/detic/Detic/third_party/ 下载了(CenterNet2)[https://github.com/xingyizhou/CenterNet2/tree/master]

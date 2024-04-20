@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--cfg-path",
     type=str,
-    default="/raid/home-robot/src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml",
+    default="/raid/home-robot/zxy/configs/env/hssd_demo.yaml",
 )
 parser.add_argument("--num-eps", type=int, default=50)
 parser.add_argument(

@@ -5,7 +5,7 @@
 For installing on server-side:
 ```sh
 cd $HOME_ROBOT_ROOT/src/home_robot
-mamba env create -n home_robot -f environment.yml
+mamba env create -n ovmm -f environment.yml
 conda activate home_robot
 pip install -e .
 ```
