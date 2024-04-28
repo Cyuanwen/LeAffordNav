@@ -871,7 +871,7 @@ class RearrangeDETICCategories(SemanticCategoryMapping):
     @property
     def color_palette(self):
         color_palette = [255, 255, 255] + d3_40_colors_rgb[
-            1 : self.num_sem_categories
+            1 : self.num_sem_categories-1
         ].flatten().tolist()
         return color_palette
 

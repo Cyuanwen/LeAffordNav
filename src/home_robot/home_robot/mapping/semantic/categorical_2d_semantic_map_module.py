@@ -26,6 +26,7 @@ from home_robot.utils.spot import draw_circle_segment, fill_convex_hull
 
 # For debugging input and output maps - shows matplotlib visuals
 debug_maps = False
+# debug_maps = True
 
 
 class Categorical2DSemanticMapModule(nn.Module):
@@ -42,6 +43,7 @@ class Categorical2DSemanticMapModule(nn.Module):
 
     # If true, display point cloud visualizations using Open3d
     debug_mode = False
+    # debug_mode = True
 
     def __init__(
         self,
@@ -878,7 +880,9 @@ class Categorical2DSemanticMapModule(nn.Module):
 
             print("Non semantic channels =", MC.NON_SEM_CHANNELS)
             print("map shape =", current_map.shape)
-            breakpoint()
+            # @cyw
+            # breakpoint()
+            plt.pause(0.05)
 
         if self.must_explore_close:
             current_map[:, MC.EXPLORED_MAP] = (
@@ -1184,5 +1188,7 @@ class Categorical2DSemanticMapModule(nn.Module):
             plt.subplot(133)
             plt.imshow(map_features[0, 12])
             plt.show()
+            # @cyw
+            plt.pause(0.05)
 
         return map_features.detach()

@@ -18,6 +18,9 @@ from home_robot.navigation_policy.object_navigation.objectnav_frontier_explorati
 
 # Do we need to visualize the frontier as we explore?
 debug_frontier_map = False
+# debug_frontier_map = True
+# @cyw
+debug = False
 
 
 class ObjectNavAgentModule(nn.Module):
@@ -177,6 +180,17 @@ class ObjectNavAgentModule(nn.Module):
 
         # t1 = time.time()
         # print(f"[Semantic mapping] Total time: {t1 - t0:.2f}")
+        if debug:
+            # seq_obs: sequence of frames containing (RGB, depth, segmentation)
+            #  of shape (batch_size, sequence_length, 3 + 1 + num_sem_categories,
+            #  frame_height, frame_width)(RGB, depth, semantic_segmentation, instance_segmentation)
+            # seq_map_features: (batch_size, sequence_length, 2 * MC.NON_SEM_CHANNELS + num_sem_categories, M, M)
+            import torch
+            seg_cat = torch.unique(torch.nonzero(seq_obs[0,0,4:])[:,0])
+            semMap_cat = torch.unique(torch.nonzero(seq_map_features[0,0,2*6:,:,:])[:,0])
+            # torch.nonzero(seq_obs[0,0,4:]):获得每一个非0元素的索引,shape:[num_nonzero_point,dim]即：点的个数，点的坐标维数
+            print(f"catogaries in semantic_segmentation:{seg_cat}")
+            print(f"catoreries in seq_map_feature:{semMap_cat}")
 
         # Predict high-level goals from map features
         # batched across sequence length x num environments

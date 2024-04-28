@@ -25,6 +25,9 @@ from home_robot.perception.constants import (
 from home_robot.perception.constants import PaletteIndices as PI
 from home_robot.perception.constants import RearrangeDETICCategories
 
+# @cyw
+debug = False
+
 
 class VIS_LAYOUT:
     HEIGHT = 480
@@ -399,6 +402,10 @@ class Visualizer:
             # Semantic categories
             semantic_map_vis = self.get_semantic_vis(semantic_map, palette)
             semantic_map_vis = np.flipud(semantic_map_vis)
+
+            # @cyw
+            if debug:
+                print(np.unique(semantic_map))
 
             semantic_map_vis = cv2.resize(
                 semantic_map_vis,

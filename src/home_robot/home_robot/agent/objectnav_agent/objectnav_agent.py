@@ -23,6 +23,9 @@ from .objectnav_agent_module import ObjectNavAgentModule
 
 # For visualizing exploration issues
 debug_frontier_map = False
+# @cyw
+save_image = False
+debug = True
 
 
 class ObjectNavAgent(Agent):
@@ -143,6 +146,9 @@ class ObjectNavAgent(Agent):
                 config.AGENT.SEMANTIC_MAP.max_instances + 1, device=self.device
             )
         self.config = config
+
+        # @cyw
+        self.full_vocab = getattr(config.AGENT.SKILLS.NAV_TO_OBJ,"type","heuristic")=="heuristic_esc" #在语义地图里面记录所有的大物体
 
     # ------------------------------------------------------------------
     # Inference methods to interact with vectorized simulation
@@ -359,6 +365,12 @@ class ObjectNavAgent(Agent):
             goal_name,
             camera_pose,
         ) = self._preprocess_obs(obs)
+        # @cyw
+        if save_image:
+            import cv2
+            cv2.imwrite(f"cyw/image/{self.timesteps[0]}.jpg",obs.rgb[:,:,[2,1,0]])
+            # obs.semantic : (640,480)
+            # obs_preprocessed: (1,28,640,480) 前几个通道是rgb和深度
 
         if "obstacle_locations" in obs.task_observations:
             obstacle_locations = obs.task_observations["obstacle_locations"]
@@ -477,7 +489,9 @@ class ObjectNavAgent(Agent):
             torch.from_numpy(obs.depth).unsqueeze(-1).to(self.device) * 100.0
         )  # m to cm
         instance_id = obs.task_observations.get("instance_id", None)
-        if self.store_all_categories_in_map:
+        # if self.store_all_categories_in_map:
+        # @cyw
+        if self.store_all_categories_in_map or self.full_vocab:
             semantic = obs.semantic
             obj_goal_idx = obs.task_observations["object_goal"]
             if "start_recep_goal" in obs.task_observations:

@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 from trimesh import transformations as tra
+import cv2
 
 from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
@@ -20,6 +21,9 @@ from home_robot.perception.wrapper import (
     read_category_map_file,
 )
 
+# @cyw
+show_image = False #展示仿真器图像，但是可以在配置里面指定visualize,所以不是很有必要
+debug = False
 
 class Skill(IntEnum):
     NAV_TO_OBJ = auto()
@@ -235,7 +239,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             if self.store_all_categories_in_map:
                 self._set_semantic_vocab(SemanticVocab.ALL, force_set=True)
             elif (
-                self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl"
+                (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
                 and not self.skip_skills.nav_to_obj
             ):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
@@ -267,7 +271,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             if not self.skip_skills.nav_to_rec:
                 action = DiscreteNavigationAction.NAVIGATION_MODE
                 if (
-                    self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl"
+                    (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
                     and not self.store_all_categories_in_map
                 ):
                     self._set_semantic_vocab(SemanticVocab.FULL, force_set=False)
@@ -416,6 +420,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action, info, terminate = self._heuristic_nav(obs, info)
         elif nav_to_obj_type == "rl":
             action, info, terminate = self.nav_to_obj_agent.act(obs, info)
+        elif nav_to_obj_type == "heuristic_esc":
+            # TODO 现在先暂时用之前的策略
+            if self.verbose:
+                print("[OVMM AGENT] step heuristic nav policy")
+            action, info, terminate = self._heuristic_nav(obs, info)
         else:
             raise ValueError(
                 f"Got unexpected value for NAV_TO_OBJ.type: {nav_to_obj_type}"
@@ -499,6 +508,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action, info, terminate = self._heuristic_nav(obs, info)
         elif nav_to_rec_type == "rl":
             action, info, terminate = self.nav_to_rec_agent.act(obs, info)
+        elif nav_to_rec_type == "heuristic_esc":
+            # TODO 
+            action, info, terminate = self._heuristic_nav(obs, info)
         else:
             raise ValueError(
                 f"Got unexpected value for NAV_TO_REC.type: {nav_to_rec_type}"
@@ -570,6 +582,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
             roll, pitch, yaw = tra.euler_from_matrix(obs.camera_pose[:3, :3], "rzyx")
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
+        if show_image:
+            cv2.imshow('rgb', cv2.cvtColor(obs.rgb, cv2.COLOR_RGB2BGR))
+            cv2.waitKey(1)
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:
                 print(f"step: {self.timesteps[0]} -- nav to obj")
@@ -610,4 +625,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print(
                 f'Executing skill {info["curr_skill"]} at timestep {self.timesteps[0]}'
             )
+        # @cyw
+        if debug:
+            print(f"initial semantic_map:{np.unique(info['semantic_map'])}")
         return action, info, obs

@@ -16,7 +16,7 @@ from utils.config_utils import (
 )
 
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
-from home_robot.agent.ovmm_agent.ovmm_exploration_agent import OVMMExplorationAgent
+from ovmm_exploration_agent import OVMMExplorationAgent
 from home_robot.agent.ovmm_agent.random_agent import RandomAgent
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--agent_type",
         type=str,
-        default="baseline",
+        default="explore",
         choices=["baseline", "random", "explore"],
         help="Agent to evaluate",
     )
