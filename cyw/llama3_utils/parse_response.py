@@ -8,7 +8,8 @@ import re
 recep_category_21 = ['bathtub', 'bed', 'bench', 'cabinet', 'chair', 'chest_of_drawers', 'couch', 'counter', 'filing_cabinet', 'hamper', 'serving_cart', 'shelves', 'shoe_rack', 'sink', 'stand', 'stool', 'table', 'toilet', 'trunk', 'wardrobe', 'washer_dryer']
 # 来自于 projects/real_world_ovmm/configs/example_cat_map.json
 
-responses_file = "cyw/data/response.json"
+# responses_file = "cyw/data/response.json"
+responses_file = "cyw/data/response_negative.json"
 
 with open(responses_file,'r') as f:
     responses = json.load(f)
@@ -28,11 +29,19 @@ for target, response in zip(recep_category_21,responses):
     if isinstance(response,list):
         # llm可能会多输出一个[]
         response = response[0]
+        if isinstance(response,str):
+            response = json.loads(response)
     target_object[target] = response['objects']
     target_room[target] = response['rooms']
 
-with open("cyw/data/target_object.json",'w') as f:
+# with open("cyw/data/target_object.json",'w') as f:
+#     json.dump(target_object,f,indent=4)
+
+# with open("cyw/data/target_room.json",'w') as f:
+#     json.dump(target_room,f,indent=4)
+
+with open("cyw/data/target_negative_object.json",'w') as f:
     json.dump(target_object,f,indent=4)
 
-with open("cyw/data/target_room.json",'w') as f:
+with open("cyw/data/target_negative_room.json",'w') as f:
     json.dump(target_room,f,indent=4)

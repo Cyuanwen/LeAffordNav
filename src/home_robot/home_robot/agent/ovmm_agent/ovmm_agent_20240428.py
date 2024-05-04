@@ -1,3 +1,7 @@
+'''
+原始版本的备份，改动较少，之后代码调试完全，可删除
+'''
+
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the MIT license found in the
@@ -235,8 +239,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.verbose:
             print("Initializing episode...")
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
-            add_room = getattr(self.config.AGENT.SEMANTIC_MAP,"record_room",False)
-            self._update_semantic_vocabs(obs, add_room=add_room)
+            self._update_semantic_vocabs(obs)
             if self.store_all_categories_in_map:
                 self._set_semantic_vocab(SemanticVocab.ALL, force_set=True)
             elif (
@@ -289,17 +292,14 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.states[e] = next_skill
         return action
 
-    # @cyw 修改
     def _update_semantic_vocabs(
-        self, obs: Observations, update_full_vocabulary: bool = True, 
-        add_room: bool = False
+        self, obs: Observations, update_full_vocabulary: bool = True
     ):
         """
         Sets vocabularies for semantic sensor at the start of episode.
         Optional-
         :update_full_vocabulary: if False, only updates simple vocabulary
         True by default
-        :add_room if true, add  room in all vocabulary, False by default
         """
         object_name = obs.task_observations["object_name"]
         start_recep_name = obs.task_observations["start_recep_name"]
@@ -314,20 +314,20 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
         # Simple vocabulary contains only object and necessary receptacles
         simple_vocab = build_vocab_from_category_map(
-            obj_id_to_name, simple_rec_id_to_name,add_room = add_room
+            obj_id_to_name, simple_rec_id_to_name
         )
         self.semantic_sensor.update_vocabulary_list(simple_vocab, SemanticVocab.SIMPLE)
 
         if update_full_vocabulary:
             # Full vocabulary contains the object and all receptacles
             full_vocab = build_vocab_from_category_map(
-                obj_id_to_name, self.rec_name_to_id,add_room = add_room
+                obj_id_to_name, self.rec_name_to_id
             )
             self.semantic_sensor.update_vocabulary_list(full_vocab, SemanticVocab.FULL)
 
         # All vocabulary contains all objects and all receptacles
         all_vocab = build_vocab_from_category_map(
-            self.obj_name_to_id, self.rec_name_to_id, add_room = add_room
+            self.obj_name_to_id, self.rec_name_to_id
         )
         self.semantic_sensor.update_vocabulary_list(all_vocab, SemanticVocab.ALL)
 

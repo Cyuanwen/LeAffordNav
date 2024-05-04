@@ -371,6 +371,8 @@ class ObjectNavAgent(Agent):
             cv2.imwrite(f"cyw/image/{self.timesteps[0]}.jpg",obs.rgb[:,:,[2,1,0]])
             # obs.semantic : (640,480)
             # obs_preprocessed: (1,28,640,480) 前几个通道是rgb和深度
+        if debug:
+            print(np.unique(obs.semantic))
 
         if "obstacle_locations" in obs.task_observations:
             obstacle_locations = obs.task_observations["obstacle_locations"]

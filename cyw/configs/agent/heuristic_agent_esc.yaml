@@ -12,7 +12,9 @@ VISION:
 SEMANTIC_MAP:
   semantic_categories: rearrange # map semantic channel categories ("coco_indoor", "longtail_indoor", "mukul_indoor", "rearrange")
   num_sem_categories: 24    # Following 5 categories: ["misc", "object_category", "start_receptacle", "goal_receptacle", "others"]
-  # 所有的recep+一个obj
+  # num_sem_categories: 33 
+  # # 所有的recep+一个obj
+  # # 如果要记录房间位置，应该再加上9
   map_size_cm: 4800        # global map size (in centimeters)
   map_resolution: 5        # size of map bins (in centimeters)
   vision_range: 100        # diameter of local map region visible by the agent (in cells)
@@ -33,6 +35,10 @@ SEMANTIC_MAP:
   # record_instance_ids: True
   max_instances: 0
   exploration_type: default
+  # @cyw
+  # record room
+  # record_room: True
+
 
 SKILLS:
   GAZE_OBJ:

@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+from logging import RootLogger
 import os
 from typing import Any, Dict, Optional, Tuple
 
@@ -13,6 +14,9 @@ from home_robot.core.interfaces import Observations
 from home_robot.perception.constants import RearrangeDETICCategories
 from home_robot.utils.config import load_config
 
+# @cyw
+ROOMS = ['bedroom', 'living room', 'bathroom', 'kitchen', 'dining room', 'office room', 'gym', 'lounge', 'laundry room']
+ROOMS_id_to_name = {id: room for id, room in enumerate(ROOMS)}
 
 class OvmmPerception:
     """
@@ -190,21 +194,36 @@ def read_category_map_file(
 
     return obj_id_to_name_mapping, rec_id_to_name_mapping
 
-
+# @ cyw 修改
 def build_vocab_from_category_map(
-    obj_id_to_name_mapping: Dict[int, str], rec_id_to_name_mapping: Dict[int, str]
+    obj_id_to_name_mapping: Dict[int, str], rec_id_to_name_mapping: Dict[int, str],
+    add_room: bool = False
 ) -> RearrangeDETICCategories:
     """
     Build vocabulary from category maps that can be used for semantic sensor and visualizations.
+    : add_room: add rooms to the vocab if True, default False
     """
     obj_rec_combined_mapping = {}
-    for i in range(len(obj_id_to_name_mapping) + len(rec_id_to_name_mapping)):
-        if i < len(obj_id_to_name_mapping):
-            obj_rec_combined_mapping[i + 1] = obj_id_to_name_mapping[i]
-        else:
-            obj_rec_combined_mapping[i + 1] = rec_id_to_name_mapping[
-                i - len(obj_id_to_name_mapping)
-            ]
+    if not add_room:
+        for i in range(len(obj_id_to_name_mapping) + len(rec_id_to_name_mapping)):
+            if i < len(obj_id_to_name_mapping):
+                obj_rec_combined_mapping[i + 1] = obj_id_to_name_mapping[i]
+            else:
+                obj_rec_combined_mapping[i + 1] = rec_id_to_name_mapping[
+                    i - len(obj_id_to_name_mapping)
+                ]
+    else:
+        for i in range(len(obj_id_to_name_mapping) + len(rec_id_to_name_mapping) + len(ROOMS_id_to_name)):
+            if i < len(obj_id_to_name_mapping):
+                obj_rec_combined_mapping[i + 1] = obj_id_to_name_mapping[i]
+            elif i < len(obj_id_to_name_mapping) + len(rec_id_to_name_mapping):
+                obj_rec_combined_mapping[i + 1] = rec_id_to_name_mapping[
+                    i - len(obj_id_to_name_mapping)
+                ]
+            else:
+                obj_rec_combined_mapping[i + 1] = ROOMS_id_to_name[
+                    i - len(obj_id_to_name_mapping) - len(rec_id_to_name_mapping)
+                ]
     vocabulary = RearrangeDETICCategories(
         obj_rec_combined_mapping, len(obj_id_to_name_mapping)
     )

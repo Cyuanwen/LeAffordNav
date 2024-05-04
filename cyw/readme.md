@@ -16,7 +16,13 @@
  - 2024-04-28
  1. 安装ollama, 基于其部署了llama3，参考https://github.com/ollama/ollama?tab=readme-ov-file
     写prompt /raid/home-robot/cyw/llama3_utils/prompt.py 获得llama3-8b响应，使用 cyw/llama3_utils/parse_response.py解析相应，结果文件存储在cyw/data 中
+ 2. 修改detection的vocab及配置文件，增加对房间的识别及建图，但detic模型基本认不出房间
 
+ - 2024-04-30
+ 1. psl单独调通
+
+## NOTE
+1. 如增加了房间识别，可视化也要相应的修改
 
 
  ## info 
@@ -30,6 +36,8 @@
  ## bug
  - 为什么设置了vovabulary FULL，结果还是只有哪几类物体？object_nav_agent的prepocess obs进行了处理
 
-
+## git版本说明
+1. init 最初版本
+2. full semantic，能够建立所有recep的语义地图，并且已从llama3-8b中抽取物体共现关系
  
 
