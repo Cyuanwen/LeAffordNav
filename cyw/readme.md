@@ -94,6 +94,10 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 8. fmm_planner 和 visualize 都把图像反转过来了 np.flipud(semantic_map_vis), 不知道为啥
 
+9. plt 可视化时，plt.show()是一个阻塞函数，只有当窗口被关闭后才能运行后面的内容，同时显示的图像也不会随着程序的运行更新（不像cv2）, 只有当程序暂停的时候才会更新
+
+10. 似乎确实没有多线程版本，readme里面也没说，真要用多线程跑的话，结果文件的记录，都需要补充
+
 
  ## bug
  - 为什么设置了vovabulary FULL，结果还是只有哪几类物体？object_nav_agent的prepocess obs进行了处理，已修复
@@ -112,6 +116,13 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 obj_goal_idx, start_recep_idx, end_recep_idx = 1, 2, 3
 ```
 3. 代码里面设置了 只要是esc导航，一定会建立full_vocab，即所有的容器都建立进去，但是消融实验值需要用room的时候，没有必要把其它容器也建立图
+
+4. object 和 object 的 co-occur 矩阵，对角线元素全置为1，可能使得agent总是倾向于选择以前探索过的instance？
+
+
+## 改进方向
+1. 现在的psl选取，好像对，又好像不对？near-room maxtrix, near_obj matrix 难以确定是否正确；基于frontier的太过于离散了，或许使用聚类的方法？问题重点不在于此，可之后再做
+2. 多进程，参考multiprocess, ray
 
 
 ## 以为的bug

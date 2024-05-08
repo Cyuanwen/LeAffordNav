@@ -75,6 +75,7 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
             )
             self.psl_config = psl_config
             self.psl_frontier_agent = psl_agent(self.psl_config)
+        self.time_step = 0 # 可视化保存图像用
 
     @property
     def goal_update_steps(self):
@@ -331,7 +332,7 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
         return goal_map
     
     
-    def get_esc_frontier_map(self, map_feature, frontier_map, state, recep_category, debug = True, near_room_range = 12, near_obj_range = 16):
+    def get_esc_frontier_map(self, map_feature, frontier_map, state, recep_category, debug = False, save_image = True,near_room_range = 12, near_obj_range = 16):
         '''
         计算概率软逻辑的前端点地图，图中只有一个点的值为1，该点即为目标点，作用与原本代码的 get_frontier_map 类似
         : map_feature: 单个样本的语义图
@@ -403,7 +404,7 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
             psl_frontier_map = torch.zeros_like(frontier_map)
             psl_frontier_map[0, loc_frontier[0], loc_frontier[1]] = 1
 
-            if debug:
+            if debug or save_image:
                 # 可视化frontier_map, frontier_dist, frontier_score
                 # 有必要的话，可视化一下obj_map, room_map, near_matrix，可参考/raid/cyw/nav_alg/multion-challenge/cyw/visualize/visualize.py
                 from PIL import Image
@@ -426,11 +427,11 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
                 # 当前位置
                 frontier_score[state[0]-7:state[0]+8,state[1]-7:state[1]+8] = 255 
                 # 最优分数位置
-                frontier_score[loc_frontier[0]-3:loc_frontier[0]+3,loc_frontier[0]-3:loc_frontier[0]+3] = 255
+                frontier_score[loc_frontier[0]-3:loc_frontier[0]+3,loc_frontier[1]-3:loc_frontier[1]+3] = 255
                 # 最小距离位置
                 min_dist_idx = np.argmin(distances_16)
                 min_dist_location = frontier_locations_16[min_dist_idx]
-                frontier_score[min_dist_location[0]-3:min_dist_location[0]+3,min_dist_location[0]-3:min_dist_location[0]+3] = 127
+                frontier_score[min_dist_location[0]-3:min_dist_location[0]+3,min_dist_location[1]-3:min_dist_location[1]+3] = 127
                 frontier_score_image = Image.fromarray(frontier_score.astype(np.uint8),mode="L")
                 # frontier_score_image.show()
                 arr = [frontier_image, traversible_image, frontier_dist_image, frontier_score_image]
@@ -444,7 +445,11 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
                     ax.axis('off')
                     ax.set_title(titles[i])
                     plt.imshow(data)
-                plt.show()
+                if save_image:
+                    plt.savefig(f"cyw/img/esc_frontier/{self.psl_config.PSL_infer}/{self.time_step}.jpg")
+                    self.time_step += 1
+                # plt.pause(1)
+                plt.show() #NOTE 可视化窗口不会随着程序运行变化，只有当程序阻塞（暂停）时，才会更新图像
             return psl_frontier_map
 
     

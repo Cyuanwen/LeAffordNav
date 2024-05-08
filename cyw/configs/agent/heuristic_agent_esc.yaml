@@ -202,6 +202,6 @@ PSL_AGENT: # psl_agent的配置，只有当导航策略为heuristic_esc时才有
   min_distance: 1.6 # 计算距离分数的归一化最小值
   max_distance: 11.6 # 计算距离分数的归一化最大值
   visualize: False # 可视化推断图像 time consuming
-  save_img: False # 保存推断图像 time consuming
+  save_img: True # 保存推断图像 time consuming
 
 
