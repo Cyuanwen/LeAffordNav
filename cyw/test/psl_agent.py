@@ -10,13 +10,18 @@ ESC 源代码使用了两种方式：PSL推理，优化概率；计算分数，�
 NOTE: PSL运行逻辑：将代码里面的数据写到 /tmp/psl-python/<psl_name>下,调用命令行
 写入数据的时候注意数据类型，有可能整型的数据在和其它数据合并的时候会变为浮点型，这时候无法推理
 
-TODO: 让大模型给出不可能在的地方，简化提示试一下
+TODO:
 这些先验应该随着探索过程不断更新
+
+Done: 
+让大模型给出不可能在的地方，简化提示试一下
 距离不能按照min max归一化，这样会导致距离最小的score为0，最大的为1，可能会导致永远都选择距离最小的
+加入批处理？
 '''
 from array import array
 import enum
 from types import SimpleNamespace
+from typing import Optional
 from pslpython.model import Model as PSLModel
 from pslpython.partition import Partition
 from pslpython.predicate import Predicate
@@ -25,8 +30,9 @@ from pslpython.rule import Rule
 import json
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
-debug = True
+debug = False
 
 ADDITIONAL_PSL_OPTIONS = {
     'log4j.threshold': 'INFO'
@@ -52,7 +58,8 @@ config = {
     "probability_pos_room": 0.9, 
     "probability_other_recep": 0.3, 
     "probability_other_room": 0.3,
-    "verbose":True
+    "verbose":True,
+    "visualize": True,
 }
 config = SimpleNamespace(**config)
 
@@ -74,6 +81,7 @@ def get_dist_score(dist_matrix:array, verbose: bool=False,
     if verbose:
         print(f"minmal distance {min_dist}, maxmal distance {max_dist}")
     dist_matrix_score = 1 - (dist_matrix - min_dist) / (max_dist - min_dist)
+    dist_matrix_score = np.clip(dist_matrix_score, 0, 1)
     return dist_matrix_score
 
 
@@ -125,6 +133,7 @@ class psl_agent(object):
             # 保存datafreme
             co_occur_room_df.to_csv("cyw/data/co_occur_room_df.csv")
             co_occur_obj_df.to_csv("cyw/data/co_occur_obj_df.csv")
+            self.visualize_co_occur_map()
 
         self.reasoning = config.reasoning
         self.psl_model = PSLModel('OVMM-PSL')  ## important: please use different name here for different process in the same machine. eg. objnav, objnav2, ...
@@ -139,6 +148,9 @@ class psl_agent(object):
             self.add_rules(self.psl_model)
 
         self.verbose = self.config.verbose
+        self.visualize = self.config.visualize
+        self.save_image = self.config.save_img
+        self.time_step = 0 # 保存图像用
 
         # 方便使用的变量
         self.rooms_idxs = np.array(range(len(rooms)))
@@ -146,6 +158,21 @@ class psl_agent(object):
         self.room_num = len(rooms)
         self.obj_num = len(recep_category_21)
     
+    def set_vocab(self,vocab):
+        '''
+        设置词表，{id:name} 需与语义地图一致
+        '''
+        self.vocab = vocab
+        # 简单判断顺序是否一致
+        obj_names = list(vocab.values())
+        if self.reasoning == "both":
+            assert obj_names[1:] == recep_category_21 + rooms
+        elif self.reasoning == "object":
+            assert obj_names[1:] == recep_category_21
+        elif self.reasoning == "room":
+            assert obj_names[-9:] == rooms
+        else:
+            raise NotImplementedError
 
     def add_predicates(self, model:PSLModel):
         """
@@ -196,10 +223,12 @@ class psl_agent(object):
             if self.verbose:
                 print(f"delete data of {predicate.name()}")
     
-    def set_target (self, target:str):
+    def set_target (self, target_idx:int):
         '''
         set target object
         '''
+        target = self.vocab[target_idx]
+        assert target in recep_category_21, "the target not in receptacle categories"
         self.target = target
         target_idx = recep_category_21_to_idx[target]
 
@@ -228,9 +257,10 @@ class psl_agent(object):
             self.co_obj_score = self.co_occur_obj_mtx[target_idx,:]
     
     def infer_optimal(
-        self,near_room_frontier:array, 
-        near_object_frontier:array,
-        dist_frontier:array
+        self,
+        dist_frontier:array,
+        near_room_frontier: Optional[array] = None, 
+        near_object_frontier:Optional[array] = None,
     ):
         '''
         严格按照最优化PSL目标函数的方式计算：耗时
@@ -240,11 +270,15 @@ class psl_agent(object):
         dist_frotier: frontier距离当前位置的距离，shape:(num_frontier,1)
         TODO: 加上obj room的判断
         '''
-        assert len(near_room_frontier) == len(rooms), "the length of distance matrix between rooms and frontiers is not equal as the length of target_co_occur_rooms"
-        assert len(near_object_frontier) == len(recep_category_21), "the length of distance matrix between objects and frontiers is not equal as the length of target_co_occur_objects"
-        assert near_room_frontier.shape[1] == near_object_frontier.shape[1] == len(dist_frontier), "the frontier number in dist_room_frontier is not equall with which in dist_object_frontier"
+        if near_room_frontier is not None:
+            assert len(near_room_frontier) == len(rooms), "the length of distance matrix between rooms and frontiers is not equal as the length of target_co_occur_rooms"
+        if near_object_frontier is not None:
+            assert len(near_object_frontier) == len(recep_category_21), "the length of distance matrix between objects and frontiers is not equal as the length of target_co_occur_objects"
+        if near_room_frontier is not None and near_object_frontier is not None:
+            assert near_room_frontier.shape[1] == near_object_frontier.shape[1] == len(dist_frontier), "the frontier number in dist_room_frontier is not equall with which in dist_object_frontier"
 
-        frontier_idxs = np.array(range(len(dist_frontier)))
+        frontier_num = len(dist_frontier)
+        frontier_idxs = np.array(range(frontier_num))
 
         #  clear the data before
         for predicate in self.psl_model.get_predicates().values():
@@ -266,7 +300,12 @@ class psl_agent(object):
             self.psl_model.get_predicate('IsNearObj').add_data(Partition.OBSERVATIONS, data)
 
         # ShortDist(F)
-        dist_score = get_dist_score(dist_frontier)
+        dist_score = get_dist_score(
+            dist_matrix =dist_frontier,
+            verbose = self.verbose,
+            min_dist = self.config.min_distance,
+            max_dist = self.config.max_distance,
+        )
         data = np.stack((frontier_idxs,dist_score)).transpose()
         data = pd.DataFrame(data,columns=list(range(2)))
         data[0] = data[0].astype(int)
@@ -280,14 +319,26 @@ class psl_agent(object):
         result = self.psl_model.infer(additional_cli_options = ADDITIONAL_CLI_OPTIONS, psl_config = ADDITIONAL_PSL_OPTIONS)
         for key, value in result.items():
             result_dt_frame = value
-            scores = result_dt_frame.loc[:,'truth']
-            idx_frontier = frontier_idxs[np.argmax(scores)]   
-            print(f"the best frontier:{idx_frontier}")
+            scores = result_dt_frame.loc[:,'truth'] # scores is 'Series' object
+            # idx_frontier = frontier_idxs[np.argmax(scores)]   
+            # print(f"the best frontier:{idx_frontier}")
+        scores = scores.to_numpy()
+        scores = scores.reshape((1,frontier_num))
+        if self.visualize or self.save_image:
+            dist_score = dist_score.reshape((1,frontier_num)) #(1,num_frontier)
+            self.visualize_infer(
+                dist_score=dist_score,
+                near_room_frontier=near_room_frontier,
+                near_object_frontier=near_object_frontier,
+                score=scores
+            )
+        return scores
     
     def infer_approximation(
-        self,near_room_frontier:array, 
-        near_object_frontier:array,
-        dist_frontier:array
+        self,
+        dist_frontier:array,
+        near_room_frontier: Optional[array] = None, 
+        near_object_frontier:Optional[array] = None,
     ):
         '''
         近似计算PSL结果：按照规则打分（实际上，规则已经蕴藏在打分计算方式里面了）计算速度快
@@ -298,9 +349,12 @@ class psl_agent(object):
         
         ESC源代码里面：物体和房间为什么要分开计算
         '''
-        assert len(near_room_frontier) == len(rooms), "the length of distance matrix between rooms and frontiers is not equal as the length of target_co_occur_rooms"
-        assert len(near_object_frontier) == len(recep_category_21), "the length of distance matrix between objects and frontiers is not equal as the length of target_co_occur_objects"
-        assert near_room_frontier.shape[1] == near_object_frontier.shape[1] == len(dist_frontier), "the frontier number in dist_room_frontier is not equall with which in dist_object_frontier"
+        if near_room_frontier is not None:
+            assert len(near_room_frontier) == len(rooms), "the length of distance matrix between rooms and frontiers is not equal as the length of target_co_occur_rooms"
+        if near_object_frontier is not None:
+            assert len(near_object_frontier) == len(recep_category_21), "the length of distance matrix between objects and frontiers is not equal as the length of target_co_occur_objects"
+        if near_room_frontier is not None and near_object_frontier is not None:
+            assert near_room_frontier.shape[1] == near_object_frontier.shape[1] == len(dist_frontier), "the frontier number in dist_room_frontier is not equall with which in dist_object_frontier"
 
         num_frontiers = len(dist_frontier)
         scores = np.zeros((1, num_frontiers))
@@ -319,18 +373,34 @@ class psl_agent(object):
             score_obj_2 = 1 - np.clip(co_obj_score - near_object_frontier + 1, -10, 1)
             score_obj = (score_obj_1 - score_obj_2).sum(axis = 0) #(1,num_frontier)
             scores += score_obj #(1,num_frontier)
-        dist_score = get_dist_score(dist_frontier).reshape((1,3)) #(1,num_frontier)
+        # ShortDist(F)
+        dist_score = get_dist_score(
+            dist_matrix =dist_frontier,
+            verbose = self.verbose,
+            min_dist = self.config.min_distance,
+            max_dist = self.config.max_distance,
+        )
+        dist_score = dist_score.reshape((1,num_frontiers)) #(1,num_frontier)
         if self.reasoning == "both":
             scores += 2 * dist_score
         else:
             scores += dist_score
-        idx_frontier = np.argmax(scores)
-        print(f"the best frontier:{idx_frontier}")
+        if self.visualize or self.save_image:
+            self.visualize_infer(
+                dist_score=dist_score,
+                near_room_frontier=near_room_frontier,
+                near_object_frontier=near_object_frontier,
+                score=scores
+            )
+        return scores
+        # idx_frontier = np.argmax(scores)
+        # print(f"the best frontier:{idx_frontier}")
     
     def infer(
-        self,near_room_frontier:array, 
-        near_object_frontier:array,
-        dist_frontier:array
+        self,
+        dist_frontier:array,
+        near_room_frontier: Optional[array] = None, 
+        near_object_frontier:Optional[array] = None,
     ):
         '''
         计算PSL结果，可在配置文件里面指定按照最优方式计算还是按照近似方式计算，两者结果似乎相差不多，近似计算更快
@@ -338,11 +408,89 @@ class psl_agent(object):
         near_object_frontier: 前端点和物体是否靠近，near_object_frontier(i,j)表示第j个前端点附近是否有物体i, 0,1变量
         注意：不是距离，仅仅判断有没有出现，因为距离很难计算
         dist_frotier: frontier距离当前位置的距离，shape:(num_frontier,1)
+        return: scores 各个frontier的选择分数
         '''
         if self.PSL_infer == "optimal":
-            self.infer_optimal(near_room_frontier,near_object_frontier,dist_frontier)
+            scores = self.infer_optimal(
+                dist_frontier = dist_frontier,
+                near_room_frontier = near_room_frontier,
+                near_object_frontier = near_object_frontier,
+            )
         else:
-            self.infer_approximation(near_room_frontier,near_object_frontier,dist_frontier)
+            scores = self.infer_approximation(
+                dist_frontier = dist_frontier,
+                near_room_frontier = near_room_frontier,
+                near_object_frontier = near_object_frontier,
+            )
+        return scores
+
+    def visualize_co_occur_map(self):
+
+        plt.figure(figsize=(10,12))
+        plt.imshow(self.co_occur_room_mtx, cmap='Blues', interpolation='nearest', aspect='auto')
+        plt.colorbar( cmap='Blues')
+        plt.yticks(range(len(recep_category_21)),recep_category_21)
+        plt.xticks(range(len(rooms)),rooms, rotation=45)
+        plt.title("object room co-occur matrix")
+        plt.savefig("cyw/img/important_img/room_co_occur.jpg",dpi=300,bbox="tight")
+        plt.close()
+
+        plt.figure(figsize=(10,10))
+        plt.imshow(self.co_occur_obj_mtx, cmap='Blues', interpolation='nearest', aspect='auto')
+        plt.colorbar( cmap='Blues')
+        plt.yticks(range(len(recep_category_21)),recep_category_21)
+        plt.xticks(range(len(recep_category_21)),recep_category_21, rotation=45)
+        plt.title("object room co-occur matrix")
+        plt.savefig("cyw/img/important_img/obj_co_occur.jpg",dpi=300,bbox="tight")
+        plt.close()
+
+
+    def visualize_infer(self,
+        dist_score:array,
+        near_room_frontier:array,
+        near_object_frontier:array,
+        score:array,
+    ):
+        plt.figure(num="psl_infer", figsize=(24,15))
+        plt.clf()
+        
+        ax = plt.subplot(2,2,1)
+        ax.set_yticks(range(len(rooms)))
+        ax.set_yticklabels(rooms)
+        # ax.set_xticks(range(len(dist_score)))
+        # ax.set_xticklabels(range(len(dist_score)),rotation=45)
+        ax.set_title("near room matrix")
+        plt.imshow(near_room_frontier, cmap='Blues', interpolation='nearest', aspect='auto')
+        plt.colorbar(cmap='Blues')
+
+        ax = plt.subplot(2,2,2)
+        ax.set_yticks(range(len(recep_category_21)))
+        ax.set_yticklabels(recep_category_21)
+        # ax.set_xticks(range(len(dist_score)))
+        # ax.set_xticklabels(range(len(dist_score)),rotation=45)
+        ax.set_title("near object matrix")
+        plt.imshow(near_object_frontier, cmap='Blues', interpolation='nearest', aspect='auto')
+        plt.colorbar(cmap='Blues')
+
+        ax = plt.subplot(2,2,3)
+        # ax.set_xticks(range(len(dist_score)))
+        ax.set_title(f"distance score min distance frontier {np.argmax(dist_score)}")
+        plt.imshow(dist_score, cmap='Blues', interpolation='nearest',aspect='auto')
+        plt.colorbar(cmap='Blues')
+
+        ax = plt.subplot(2,2,4)
+        # ax.set_xticks(range(len(dist_score)))
+        ax.set_title(f"score optimal frontier: {np.argmax(score)}")
+        plt.imshow(score, cmap='Blues', interpolation='nearest',aspect='auto')
+        plt.colorbar(cmap='Blues')
+
+        if self.save_image:
+            plt.savefig(f"cyw/img/psl_image/{self.PSL_infer}/{self.time_step}.jpg",bbox="tight")
+            self.time_step += 1
+        if self.visualize:
+            plt.show()
+
+        print("visualize infer...")
 
 
 if __name__ == "__main__":
@@ -366,7 +514,11 @@ if __name__ == "__main__":
     print("distance of frontier===========")
     print(dist_frontier)
 
-    psl_agent_1.infer(near_room_frontier,near_object_frontier,dist_frontier)
+    psl_agent_1.infer(
+        dist_frontier = dist_frontier,
+        near_room_frontier = near_room_frontier,
+        near_object_frontier = near_object_frontier,
+        )
 
 
 

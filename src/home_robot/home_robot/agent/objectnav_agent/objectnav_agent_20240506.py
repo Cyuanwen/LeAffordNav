@@ -24,6 +24,7 @@ from .objectnav_agent_module import ObjectNavAgentModule
 # For visualizing exploration issues
 debug_frontier_map = False
 # @cyw
+save_image = False
 debug = True
 
 
@@ -153,7 +154,11 @@ class ObjectNavAgent(Agent):
     # Inference methods to interact with vectorized simulation
     # environments
     # ------------------------------------------------------------------
+            # object_name=object_name,
+            # start_recep_goal_name=start_recep_goal_name,
+            # end_recep_goal_name=end_recep_goal_name
     @torch.no_grad()
+    # @cyw modified
     def prepare_planner_inputs(
         self,
         obs: torch.Tensor,
@@ -183,6 +188,7 @@ class ObjectNavAgent(Agent):
             start_recep_goal_category: semantic category of start receptacle goals
             end_recep_goal_category: semantic category of end receptacle goals
             camera_pose: camera extrinsic pose of shape (num_environments, 4, 4)
+
         Returns:
             planner_inputs: list of num_environments planner inputs dicts containing
                 obstacle_map: (M, M) binary np.ndarray local obstacle map
@@ -363,6 +369,11 @@ class ObjectNavAgent(Agent):
             camera_pose,
         ) = self._preprocess_obs(obs)
         # @cyw
+        if save_image:
+            import cv2
+            cv2.imwrite(f"cyw/image/{self.timesteps[0]}.jpg",obs.rgb[:,:,[2,1,0]])
+            # obs.semantic : (640,480)
+            # obs_preprocessed: (1,28,640,480) 前几个通道是rgb和深度
         if debug:
             print(np.unique(obs.semantic))
 
@@ -406,6 +417,20 @@ class ObjectNavAgent(Agent):
         if "semantic_max_val" in obs.task_observations:
             semantic_max_val = obs.task_observations["semantic_max_val"]
 
+        # @cyw
+        # 如果是esc导航，计算物体类别名称
+        if getattr(self.config.AGENT.SKILLS.NAV_TO_OBJ,"type","heuristic")=="heuristic_esc":
+            # NOTE 多线程可能出错
+            object_name = obs.object_name
+            start_recep_goal_name = obs.start_recep_name
+            end_recep_goal_name = obs.place_recep_name
+            if self.verbose:
+                print(f"[ObjectNav] object goal: {object_name}, start recep: {start_recep_goal_name}, end recep {end_recep_goal_name} ")
+        else:
+            object_name = None
+            start_recep_goal_name = None
+            end_recep_goal_name = None
+
         # 2 - Semantic mapping + policy
         planner_inputs, vis_inputs = self.prepare_planner_inputs(
             obs_preprocessed,
@@ -419,6 +444,9 @@ class ObjectNavAgent(Agent):
             semantic_max_val=semantic_max_val,
             obstacle_locations=obstacle_locations,
             free_locations=free_locations,
+            object_name=object_name,
+            start_recep_goal_name=start_recep_goal_name,
+            end_recep_goal_name=end_recep_goal_name
         )
 
         if self.get_timing:

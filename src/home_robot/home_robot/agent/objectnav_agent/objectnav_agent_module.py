@@ -15,10 +15,14 @@ from home_robot.mapping.semantic.categorical_2d_semantic_map_module import (
 from home_robot.navigation_policy.object_navigation.objectnav_frontier_exploration_policy import (
     ObjectNavFrontierExplorationPolicy,
 )
+# @cyw
+import torch
+import home_robot.utils.pose as pu
 
 # Do we need to visualize the frontier as we explore?
 debug_frontier_map = False
 # debug_frontier_map = True
+
 # @cyw
 debug = False
 
@@ -65,17 +69,29 @@ class ObjectNavAgentModule(nn.Module):
             gaze_width=getattr(config.AGENT.SEMANTIC_MAP, "gaze_width", 40),
             gaze_distance=getattr(config.AGENT.SEMANTIC_MAP, "gaze_distance", 1.5),
         )
+        # @cyw
+        self.esc_frontier = (config.AGENT.SKILLS.NAV_TO_REC.type == "heuristic_esc")
         self.policy = ObjectNavFrontierExplorationPolicy(
             exploration_strategy=config.AGENT.exploration_strategy,
             num_sem_categories=config.AGENT.SEMANTIC_MAP.num_sem_categories,
             explored_area_dilation_radius=getattr(
                 config.AGENT.PLANNER, "explored_area_dilation_radius", 10
             ),
+            psl_config=getattr(config.AGENT, "PSL_AGENT", None),
+            obs_dilation_selem_radius=getattr(
+                config.AGENT.PLANNER, "obs_dilation_selem_radius",3
+            ),
+            esc_frontier = self.esc_frontier,
         )
+        self.map_resolution=config.AGENT.SEMANTIC_MAP.map_resolution
 
     @property
     def goal_update_steps(self):
         return self.policy.goal_update_steps
+    
+    # @cyw
+    def reset(self, vocab):
+        self.policy.reset(vocab)
 
     def forward(
         self,
@@ -185,7 +201,7 @@ class ObjectNavAgentModule(nn.Module):
             #  of shape (batch_size, sequence_length, 3 + 1 + num_sem_categories,
             #  frame_height, frame_width)(RGB, depth, semantic_segmentation, instance_segmentation)
             # seq_map_features: (batch_size, sequence_length, 2 * MC.NON_SEM_CHANNELS + num_sem_categories, M, M)
-            import torch
+            # import torch
             seg_cat = torch.unique(torch.nonzero(seq_obs[0,0,4:])[:,0])
             semMap_cat = torch.unique(torch.nonzero(seq_map_features[0,0,2*6:,:,:])[:,0])
             # torch.nonzero(seq_obs[0,0,4:]):获得每一个非0元素的索引,shape:[num_nonzero_point,dim]即：点的个数，点的坐标维数
@@ -203,6 +219,30 @@ class ObjectNavAgentModule(nn.Module):
             seq_end_recep_goal_category = seq_end_recep_goal_category.flatten(0, 1)
         if seq_instance_id is not None:
             seq_instance_id = seq_instance_id.flatten(0, 1)
+        # @cyw
+        # 如果使用esc 导航，计算当前位置
+        if self.esc_frontier:
+            states = seq_local_pose[:, -1, 0:2] # seq_local_pose shape (batch, seq_length, 3) [:, -1]选取第二维的最后一个
+            states = states * 100.0 / self.map_resolution
+            states = states.to(torch.int)
+            for i in range(len(states)):
+                states[i] = pu.threshold_poses(states[i], seq_map_features.shape[-2:])
+            # 参考 src/home_robot/home_robot/navigation_planner/discrete_planner.py 172行，将 x, y坐标翻转
+            states = states[:,[1,0]]
+        else:
+            states = None
+        
+        # start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
+        # gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
+        # planning_window = [gx1, gx2, gy1, gy2]
+
+        # start = [
+        #     int(start_y * 100.0 / self.map_resolution - gx1),
+        #     int(start_x * 100.0 / self.map_resolution - gy1),
+        # ]
+        # start = pu.threshold_poses(start, obstacle_map.shape)
+        # start = np.array(start)
+        
         # Compute the goal map
         goal_map, found_goal = self.policy(
             map_features,
@@ -211,6 +251,7 @@ class ObjectNavAgentModule(nn.Module):
             seq_end_recep_goal_category,
             seq_instance_id,
             seq_nav_to_recep,
+            states,
         )
         seq_goal_map = goal_map.view(batch_size, sequence_length, *goal_map.shape[-2:])
         seq_found_goal = found_goal.view(batch_size, sequence_length)

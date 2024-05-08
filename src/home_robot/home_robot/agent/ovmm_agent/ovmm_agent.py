@@ -22,7 +22,6 @@ from home_robot.perception.wrapper import (
 )
 
 # @cyw
-show_image = False #展示仿真器图像，但是可以在配置里面指定visualize,所以不是很有必要
 debug = False
 
 class Skill(IntEnum):
@@ -246,6 +245,10 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
             else:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=True)
+        # @cyw
+        if self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc":
+            self.module.module.reset(self.semantic_sensor.vocabulary_id_to_name)
+
 
     def _switch_to_next_skill(
         self, e: int, next_skill: Skill, info: Dict[str, Any]
@@ -573,7 +576,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         """State machine"""
         if self.timesteps[0] == 0:
             self._init_episode(obs)
-
+            
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
             obs = self.semantic_sensor(obs)
         else:
@@ -586,9 +589,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             roll, pitch, yaw = tra.euler_from_matrix(obs.camera_pose[:3, :3], "rzyx")
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
-        if show_image:
-            cv2.imshow('rgb', cv2.cvtColor(obs.rgb, cv2.COLOR_RGB2BGR))
-            cv2.waitKey(1)
+        
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:
                 print(f"step: {self.timesteps[0]} -- nav to obj")

@@ -3,11 +3,6 @@ from PIL import Image
 import pickle
 import cv2
 
-with open("cyw/test/data/palette.pkl","rb") as f:
-    palette = pickle.load(f)
-
-with open("cyw/test/data/semantic_category_mapping.pkl","rb") as f:
-    semantic_category_mapping = pickle.load(f)
 
 # semantic_labels = semantic_category_mapping.goal_id_to_goal_name
 # # 创建一个空白的图例图像
@@ -47,15 +42,40 @@ import matplotlib.cm as cm
 #     # ... 其他物体类别的名称
 # ]
 
-# # 创建数字和物体类别的映射字典
-# number_to_class = {number: class_name for number, class_name in zip(palette, class_names)}
-class_names = semantic_category_mapping.goal_id_to_goal_name
-# 创建图例
-legend_patches = [plt.Rectangle((0, 0), 1, 1, fc=cm.tab10(number)) for number in palette[1:len(class_names)+1]]
-plt.legend(legend_patches, class_names)
+# # # 创建数字和物体类别的映射字典
+# # number_to_class = {number: class_name for number, class_name in zip(palette, class_names)}
+# class_names = semantic_category_mapping.goal_id_to_goal_name
+# # 创建图例
+# legend_patches = [plt.Rectangle((0, 0), 1, 1, fc=cm.tab10(number)) for number in palette[1:len(class_names)+1]]
+# plt.legend(legend_patches, class_names)
 
-# 显示图例
-plt.axis('off')
+# # 显示图例
+# plt.axis('off')
+# plt.show()
+
+# print('over')
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 假设有一个协方差矩阵
+cov_matrix = np.array([[1.0, 0.5, 0.3],
+                       [0.5, 1.0, 0.2],
+                       [0.3, 0.2, 1.0]])
+
+# 使用热图可视化协方差矩阵
+plt.imshow(cov_matrix, cmap='Blues', interpolation='nearest')
+
+# 添加颜色条
+plt.colorbar( cmap='Blues')
+
+# 自定义横轴和纵轴标签
+variables = ['Variable 1', 'Variable 2', 'Variable 3']
+plt.xticks(range(len(variables)), variables)
+plt.yticks(range(len(variables)), variables)
+
+plt.title('Covariance Matrix')
+plt.xlabel('Variables')
+plt.ylabel('Variables')
 plt.show()
-
-print('over')
+print("over")

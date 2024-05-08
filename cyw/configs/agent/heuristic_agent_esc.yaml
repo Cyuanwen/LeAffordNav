@@ -11,8 +11,8 @@ VISION:
 
 SEMANTIC_MAP:
   semantic_categories: rearrange # map semantic channel categories ("coco_indoor", "longtail_indoor", "mukul_indoor", "rearrange")
-  num_sem_categories: 24    # Following 5 categories: ["misc", "object_category", "start_receptacle", "goal_receptacle", "others"]
-  # num_sem_categories: 33 
+  # num_sem_categories: 24    # Following 5 categories: ["misc", "object_category", "start_receptacle", "goal_receptacle", "others"]
+  num_sem_categories: 33  # FULL vocab: [".", "goal_obj", rec_catogary_21, room_9, "other"] 
   # # 所有的recep+一个obj
   # # 如果要记录房间位置，应该再加上9
   map_size_cm: 4800        # global map size (in centimeters)
@@ -36,8 +36,7 @@ SEMANTIC_MAP:
   max_instances: 0
   exploration_type: default
   # @cyw
-  # record room
-  # record_room: True
+  record_room: True #是否要记录房间，如果要记录房间 num_sem_categories 要相应的加上 9
 
 
 SKILLS:
@@ -185,3 +184,24 @@ PLANNER:
   discrete_actions: True         # discrete motion planner output space or not
   verbose: False                 # display debug information during planning
   planner_type: "old"             # ("old", "new") where "new" is the latest one being used for spot in real world
+
+# @cyw
+PSL_AGENT: # psl_agent的配置，只有当导航策略为heuristic_esc时才有效
+  co_occur_file: "cyw/data/co_occur_llama3_7b.json"
+  reasoning: "both" # the method to reasoning, choose from ["both","room","object"]
+  PSL_infer: "approximation" # the method to infer, choose from ["optimal","approximation"] optimal is time consuming
+  probability_neg_recep: 0.1 #分给负相关物体的概率
+  probability_neg_room: 0.1 #分给负相关房间的概率
+  probability_pos_recep: 0.9
+  probability_pos_room: 0.9
+  probability_other_recep: 0.3 
+  probability_other_room: 0.3 
+  verbose: True
+  near_room_range: 12 # 距离房间多少格以内认为是靠近
+  near_obj_range: 16 # 距离物体多少格以内是靠近
+  min_distance: 1.6 # 计算距离分数的归一化最小值
+  max_distance: 11.6 # 计算距离分数的归一化最大值
+  visualize: False # 可视化推断图像 time consuming
+  save_img: False # 保存推断图像 time consuming
+
+
