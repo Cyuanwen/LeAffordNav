@@ -90,8 +90,8 @@ class ObjectNavAgentModule(nn.Module):
         return self.policy.goal_update_steps
     
     # @cyw
-    def reset(self, vocab):
-        self.policy.reset(vocab)
+    def reset(self, vocab:Optional[dict], gt_seg:bool=False):
+        self.policy.reset(vocab,gt_seg)
 
     def forward(
         self,

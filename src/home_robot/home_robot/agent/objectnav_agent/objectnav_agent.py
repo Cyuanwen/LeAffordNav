@@ -24,7 +24,7 @@ from .objectnav_agent_module import ObjectNavAgentModule
 # For visualizing exploration issues
 debug_frontier_map = False
 # @cyw
-debug = True
+debug = False
 
 
 class ObjectNavAgent(Agent):

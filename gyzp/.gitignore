@@ -1,0 +1,9 @@
+data/
+models/
+output/
+*.pt
+*.pth
+runs/
+download/
+__pycache__/
+temp/

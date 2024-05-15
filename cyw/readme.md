@@ -1,3 +1,8 @@
+## requirement
+按照 https://ollama.com/blog/llama3 部署 llama3
+参考 https://docs.ultralytics.com/models/yolo-world/#available-models-supported-tasks-and-operating-modes 部署yolo系列 环境
+注意：yolo-world本身环境部署报错
+
 ## update
 - 2024-04-20 /raid/cyw/home-robot/home-robot/src/third_party/detectron2/detectron2 在这个文件夹下面git clone了(detectron2)[https://detectron2.readthedocs.io/en/latest/tutorials/install.html]项目；/raid/home-robot/src/home_robot/home_robot/perception/detection/detic/Detic/third_party/ 下载了(CenterNet2)[https://github.com/xingyizhou/CenterNet2/tree/master]
 - 2024-04-24 
@@ -44,6 +49,7 @@
 
 ## NOTE
 1. 如增加了房间识别，可视化也要相应的修改
+2. habitat env 配置嵌套太严重，直接在相应目录下修改，主要包括：src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml 以及 src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml
 
 
  ## info 
@@ -98,6 +104,38 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 10. 似乎确实没有多线程版本，readme里面也没说，真要用多线程跑的话，结果文件的记录，都需要补充
 
+11. projects/habitat_ovmm/evaluator.py 有写一个智能体只能工作一个环境
+
+12. src/third_party/habitat-lab/habitat-baselines/habitat_baselines/common/habitat_env_factory.py 环境初始化函数 vector envrioment
+
+13. 传入的env 配置经过 projects/habitat_ovmm/utils/config_utils.py 包装配置, 可以在里面设置级联参数,目前不是很有必要
+
+14. habitat_config文件 src/third_party/habitat-lab/habitat-baselines/habitat_baselines/config/ovmm/ovmm_eval.yaml
+
+15. 现在的代码原则上可以用一个agent处理多个环境，但是目前agent的识别模块设置了与任务相关的识别，当另一个环境给出新的任务时，agent报错
+
+16. dataset配置主要在habitat_config文件里面，然后habitat_config前几行调用了 default配置参数，引用了其它文件，相关文件基本位于： src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml  可用linux系统 find . -d type -nmae *** 查找相关配置文件
+
+17. 默认配置里面跳过了gaze
+```
+  gaze_at_obj: True
+  gaze_at_rec: True
+```
+这个步骤
+
+18. 走的过程会把close区域移除：src/home_robot/home_robot/navigation_policy/object_navigation/objectnav_frontier_exploration_policy.py 278行
+
+19. agent配置里面默认设置   use_dilation_for_stg: False 这时descrite planner 会选择一个最近的可导航的目标点，但是这似乎没有起到效果？ 为什么会出现卡死，可能需要更详细地找找原因
+
+20. 默认放置设置：启发式放置
+
+21. 应该好好看看安装路径 /raid/home-robot/install_deps.sh
+
+## 各个split数据量大小
+val: 1199
+minival: 10
+train: 
+
 
  ## bug
  - 为什么设置了vovabulary FULL，结果还是只有哪几类物体？object_nav_agent的prepocess obs进行了处理，已修复
@@ -123,6 +161,8 @@ obj_goal_idx, start_recep_idx, end_recep_idx = 1, 2, 3
 ## 改进方向
 1. 现在的psl选取，好像对，又好像不对？near-room maxtrix, near_obj matrix 难以确定是否正确；基于frontier的太过于离散了，或许使用聚类的方法？问题重点不在于此，可之后再做
 2. 多进程，参考multiprocess, ray
+3. 发现目标后，围着目标转一圈，也合理也不合理，在地图上是围着饶了一圈，但是并没有真正的在视角上饶一圈，没有窥探全貌
+4. 从地图来看，recep是容易发现的，其实frontier并没有发生什么重大作用
 
 
 ## 以为的bug
@@ -137,8 +177,21 @@ start = [
 又转换为了 local_pose, 所以是对的, 需要注意：语义图给出的local_pose 和 global_pose都是以m为单位，且 y 为第一轴的坐标值，x 为第二轴的坐标值
 
 ## TODO tomorro
+1. 跑一下连续环境设置是什么结果？
+2. 先用gt对比一下效果，目前来看，导航算法的停止点选择很不合理
 
 
+## question
+1. 为什么非gt 会这么大的影响rl place 效果？ rl有没有针对非gt训练
 
- 
+## idea
+1. 选择目标点的时候考虑可交互性,拿取、放置
+2. 加上gaze at object
+3. 重新训练place 策略
+4. 加上场景布局匹配
+
+5. 分割模型怎么着都要微调
+
+## 环境配置版本说明
+cyw/ovmm_env_20240513.yml 为配置yolo-world模型前的环境配置
 

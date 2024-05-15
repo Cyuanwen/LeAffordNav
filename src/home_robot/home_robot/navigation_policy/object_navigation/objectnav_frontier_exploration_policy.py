@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 from array import array
 import enum
+from optparse import Option
+from typing import Dict, Optional
 import numpy as np
 import scipy
 import skimage.morphology
@@ -82,9 +84,9 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
         return 1
     
     # @cyw
-    def reset(self, vocab):
+    def reset(self, vocab:Optional[Dict], gt_seg:bool=False):
         if self.esc_frontier:
-            self.psl_frontier_agent.set_vocab(vocab)
+            self.psl_frontier_agent.set_vocab(vocab, gt_seg)
             
 
     def reach_single_category(self, map_features, category, states):
@@ -332,7 +334,7 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
         return goal_map
     
     
-    def get_esc_frontier_map(self, map_feature, frontier_map, state, recep_category, debug = False, save_image = True,near_room_range = 12, near_obj_range = 16):
+    def get_esc_frontier_map(self, map_feature, frontier_map, state, recep_category, debug = False, save_image = False, near_room_range = 12, near_obj_range = 16):
         '''
         计算概率软逻辑的前端点地图，图中只有一个点的值为1，该点即为目标点，作用与原本代码的 get_frontier_map 类似
         : map_feature: 单个样本的语义图

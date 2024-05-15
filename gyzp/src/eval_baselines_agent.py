@@ -16,7 +16,7 @@ from utils.config_utils import (
 )
 
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
-from home_robot.agent.ovmm_agent.ovmm_exploration_agent import OVMMExplorationAgent
+from ovmm_exploration_agent import OVMMExplorationAgent
 from home_robot.agent.ovmm_agent.random_agent import RandomAgent
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -36,25 +36,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "--habitat_config_path",
         type=str,
-        default="ovmm/ovmm_eval.yaml",
+        default="/raid/home-robot/gyzp/src/configs/ovmm/ovmm_eval.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
         "--baseline_config_path",
         type=str,
-        default="projects/habitat_ovmm/configs/agent/heuristic_agent.yaml",
+        default="/raid/home-robot/gyzp/src/configs/agent/heuristic_agent.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
         "--env_config_path",
         type=str,
-        default="projects/habitat_ovmm/configs/env/hssd_eval.yaml",
+        default="/raid/home-robot/gyzp/src/configs/env/hssd_demo.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
         "--agent_type",
         type=str,
-        default="baseline",
+        default="explore",
         choices=["baseline", "random", "explore"],
         help="Agent to evaluate",
     )
@@ -76,27 +76,7 @@ if __name__ == "__main__":
         nargs=argparse.REMAINDER,
         help="Modify config options from command line",
     )
-    # @cyw
-    parser.add_argument(
-        "--id_file", #运行特定的id 列表
-        type=str,
-        default=None,
-        help="whether to use id file to run"
-    )
-    parser.add_argument(
-        "--EXP_NAME_suffix", 
-        type=str,
-        default=None,
-        help="whether to add suffix to the env config experiment name"
-    )
     args = parser.parse_args()
-
-    if args.id_file is not None:
-        import json
-        with open(args.id_file,"r") as f:
-            episode_ids = json.load(f)
-        args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
-        # NOTE EXP_NAME_suffix与habitat.dataset.episode_ids={episode_ids}不能同时使用
 
     # get habitat config
     habitat_config, _ = get_habitat_config(
@@ -108,13 +88,6 @@ if __name__ == "__main__":
 
     # get env config
     env_config = get_omega_config(args.env_config_path)
-
-    # @cyw
-    if args.EXP_NAME_suffix is not None:
-        from omegaconf import DictConfig, OmegaConf
-        OmegaConf.set_readonly(env_config, False)
-        env_config.EXP_NAME = env_config.EXP_NAME +"_" + args.EXP_NAME_suffix
-        OmegaConf.set_readonly(env_config, True)
 
     # merge habitat and env config to create env config
     env_config = create_env_config(

@@ -1,0 +1,29 @@
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: /raid/home-robot/gyzp/yolo/data  # dataset root dir
+train: images/train  # train images (relative to 'path') 4 images
+val: images/val  # val images (relative to 'path') 4 images
+test:  images/test # test images (optional)
+
+# Classes (21 recep classes)
+names:
+  0: "bathtub"
+  1: "bed"
+  2: "bench"
+  3: "cabinet"
+  4: "chair"
+  5: "chest_of_drawers"
+  6: "couch"
+  7: "counter"
+  8: "filing_cabinet"
+  9: "hamper"
+  10: "serving_cart"
+  11: "shelves"
+  12: "shoe_rack"
+  13: "sink"
+  14: "stand"
+  15: "stool"
+  16: "table"
+  17: "toilet"
+  18: "trunk"
+  19: "wardrobe"
+  20: "washer_dryer"

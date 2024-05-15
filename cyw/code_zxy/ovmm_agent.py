@@ -9,10 +9,9 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 from trimesh import transformations as tra
-import cv2
 
 from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
-from home_robot.core.interfaces import DiscreteNavigationAction, Observations
+from home_robot.core.interfaces import DiscreteNavigationAction, Observations, ContinuousFullBodyAction, ContinuousNavigationAction
 from home_robot.manipulation import HeuristicPickPolicy, HeuristicPlacePolicy
 from home_robot.perception.constants import RearrangeBasicCategories
 from home_robot.perception.wrapper import (
@@ -21,8 +20,8 @@ from home_robot.perception.wrapper import (
     read_category_map_file,
 )
 
-# @cyw
-debug = False
+import cv2
+
 
 class Skill(IntEnum):
     NAV_TO_OBJ = auto()
@@ -34,6 +33,7 @@ class Skill(IntEnum):
     EXPLORE = auto()
     NAV_TO_INSTANCE = auto()
     FALL_WAIT = auto()
+    CENTERING = auto()
 
 
 class SemanticVocab(IntEnum):
@@ -68,6 +68,19 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.pick_policy = None
         self.place_policy = None
         self.semantic_sensor = None
+        
+        self.placing_actions = [
+            DiscreteNavigationAction.MOVE_FORWARD,
+            DiscreteNavigationAction.MANIPULATION_MODE,
+            # ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, -0.2, (6*3.14)/180.0]),
+            ContinuousFullBodyAction([1,0,0,0,1,0,0,0,0,0], [0, 0, 0]),
+            DiscreteNavigationAction.DESNAP_OBJECT,
+            DiscreteNavigationAction.STOP
+        ]
+        self.placing_index = 0
+        
+        self.forward_time = 0
+        self.centering_time = 0
 
         if config.GROUND_TRUTH_SEMANTICS == 1 and self.store_all_categories_in_map:
             # currently we get ground truth semantics of only the target object category and all scene receptacles from the simulator
@@ -234,26 +247,16 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.verbose:
             print("Initializing episode...")
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
-            add_room = getattr(self.config.AGENT.SEMANTIC_MAP,"record_room",False)
-            self._update_semantic_vocabs(obs, add_room=add_room)
+            self._update_semantic_vocabs(obs)
             if self.store_all_categories_in_map:
                 self._set_semantic_vocab(SemanticVocab.ALL, force_set=True)
             elif (
-                (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
+                self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl"
                 and not self.skip_skills.nav_to_obj
             ):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
             else:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=True)
-        # @cyw
-        if self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc":
-            if self.config.GROUND_TRUTH_SEMANTICS == 0:
-                self.module.module.reset(vocab=self.semantic_sensor.vocabulary_id_to_name, gt_seg=False)
-            else:
-                # 使用gt semantic, 设置为与gt对应的词典
-                self.module.module.reset(vocab=None, gt_seg=True)
-
-
 
     def _switch_to_next_skill(
         self, e: int, next_skill: Skill, info: Dict[str, Any]
@@ -280,7 +283,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             if not self.skip_skills.nav_to_rec:
                 action = DiscreteNavigationAction.NAVIGATION_MODE
                 if (
-                    (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
+                    self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl"
                     and not self.store_all_categories_in_map
                 ):
                     self._set_semantic_vocab(SemanticVocab.FULL, force_set=False)
@@ -297,17 +300,14 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.states[e] = next_skill
         return action
 
-    # @cyw 修改
     def _update_semantic_vocabs(
-        self, obs: Observations, update_full_vocabulary: bool = True, 
-        add_room: bool = False
+        self, obs: Observations, update_full_vocabulary: bool = True
     ):
         """
         Sets vocabularies for semantic sensor at the start of episode.
         Optional-
         :update_full_vocabulary: if False, only updates simple vocabulary
         True by default
-        :add_room if true, add  room in all vocabulary, False by default
         """
         object_name = obs.task_observations["object_name"]
         start_recep_name = obs.task_observations["start_recep_name"]
@@ -322,20 +322,20 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
         # Simple vocabulary contains only object and necessary receptacles
         simple_vocab = build_vocab_from_category_map(
-            obj_id_to_name, simple_rec_id_to_name,add_room = add_room
+            obj_id_to_name, simple_rec_id_to_name
         )
         self.semantic_sensor.update_vocabulary_list(simple_vocab, SemanticVocab.SIMPLE)
 
         if update_full_vocabulary:
             # Full vocabulary contains the object and all receptacles
             full_vocab = build_vocab_from_category_map(
-                obj_id_to_name, self.rec_name_to_id,add_room = add_room
+                obj_id_to_name, self.rec_name_to_id
             )
             self.semantic_sensor.update_vocabulary_list(full_vocab, SemanticVocab.FULL)
 
         # All vocabulary contains all objects and all receptacles
         all_vocab = build_vocab_from_category_map(
-            self.obj_name_to_id, self.rec_name_to_id, add_room = add_room
+            self.obj_name_to_id, self.rec_name_to_id
         )
         self.semantic_sensor.update_vocabulary_list(all_vocab, SemanticVocab.ALL)
 
@@ -432,11 +432,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action, info, terminate = self._heuristic_nav(obs, info)
         elif nav_to_obj_type == "rl":
             action, info, terminate = self.nav_to_obj_agent.act(obs, info)
-        elif nav_to_obj_type == "heuristic_esc":
-            # TODO 现在先暂时用之前的策略
-            if self.verbose:
-                print("[OVMM AGENT] step heuristic nav policy")
-            action, info, terminate = self._heuristic_nav(obs, info)
         else:
             raise ValueError(
                 f"Got unexpected value for NAV_TO_OBJ.type: {nav_to_obj_type}"
@@ -479,9 +474,19 @@ class OpenVocabManipAgent(ObjectNavAgent):
             if pick_step == 0:
                 action = DiscreteNavigationAction.MANIPULATION_MODE
             elif pick_step == 1:
-                action = DiscreteNavigationAction.SNAP_OBJECT
+                action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, -0.2, 0])
             elif pick_step == 2:
+                action = DiscreteNavigationAction.SNAP_OBJECT
+            elif pick_step == 3:
                 action = None
+                # if obs.is_holding is None:
+                #     return ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0.4, 3.14]), info, None
+                # else:
+                #     action = None
+            elif pick_step == 4:
+                return DiscreteNavigationAction.NAVIGATION_MODE, info, None
+            elif pick_step == 5:
+                return None, info, Skill.NAV_TO_OBJ
             else:
                 raise ValueError(
                     "Still in oracle pick. Should've transitioned to next skill."
@@ -520,9 +525,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action, info, terminate = self._heuristic_nav(obs, info)
         elif nav_to_rec_type == "rl":
             action, info, terminate = self.nav_to_rec_agent.act(obs, info)
-        elif nav_to_rec_type == "heuristic_esc":
-            # TODO 
-            action, info, terminate = self._heuristic_nav(obs, info)
         else:
             raise ValueError(
                 f"Got unexpected value for NAV_TO_REC.type: {nav_to_rec_type}"
@@ -543,7 +545,31 @@ class OpenVocabManipAgent(ObjectNavAgent):
         new_state = None
         if terminate:
             action = None
+            new_state = Skill.CENTERING
+        return action, info, new_state
+    
+    def _centering(
+        self, obs: Observations, info: Dict[str, Any]
+    ) -> Tuple[DiscreteNavigationAction, Any, Optional[Skill]]:
+        tar_index = obs.task_observations['end_recep_goal']
+        tar_cen_line = np.where(obs.semantic==tar_index)[1].mean()
+        new_state = None
+        if abs(tar_cen_line-240) < 20:
+            action = None
             new_state = Skill.PLACE
+        elif tar_cen_line-240 > 0:
+            action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0, -(6*3.14)/180.0])
+            self.centering_time += 1
+        else:
+            action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0, (6*3.14)/180.0])
+            self.centering_time += 1
+            
+        if self.centering_time >= 20:
+            self.centering_time = 0
+            self.reset()
+            action = None
+            new_state = Skill.NAV_TO_REC
+        
         return action, info, new_state
 
     def _place(
@@ -555,7 +581,10 @@ class OpenVocabManipAgent(ObjectNavAgent):
         elif place_type == "hardcoded":
             action = self._hardcoded_place()
         elif place_type == "heuristic":
-            action, info = self.place_policy(obs, info)
+            # action, info = self.place_policy(obs, info)
+            # Changed by Trisoil
+            action = self.placing_actions[self.placing_index]
+            self.placing_index += 1
         elif place_type == "rl":
             action, info = self._rl_place(obs, info)
         else:
@@ -564,6 +593,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if action == DiscreteNavigationAction.STOP:
             action = None
             new_state = Skill.FALL_WAIT
+            self.placing_index = 0
         return action, info, new_state
 
     def _fall_wait(
@@ -578,15 +608,17 @@ class OpenVocabManipAgent(ObjectNavAgent):
     def act(
         self, obs: Observations
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
+        # cv2.imshow('rgb', cv2.cvtColor(obs.rgb, cv2.COLOR_RGB2BGR))
+        # cv2.waitKey(1)
+        
         """State machine"""
         if self.timesteps[0] == 0:
             self._init_episode(obs)
-            
+
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
             obs = self.semantic_sensor(obs)
         else:
             obs.task_observations["semantic_frame"] = None
-            
         info = self._get_info(obs)
 
         self.timesteps[0] += 1
@@ -595,7 +627,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
             roll, pitch, yaw = tra.euler_from_matrix(obs.camera_pose[:3, :3], "rzyx")
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
-        
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:
                 print(f"step: {self.timesteps[0]} -- nav to obj")
@@ -612,6 +643,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
             elif self.states[0] == Skill.GAZE_AT_REC:
                 print(f"step: {self.timesteps[0]} -- gaze at rec")
                 action, info, new_state = self._gaze_at_rec(obs, info)
+            elif self.states[0] == Skill.CENTERING:
+                print(f"step: {self.timesteps[0]} -- centering")
+                action, info, new_state = self._centering(obs, info)
             elif self.states[0] == Skill.PLACE:
                 print(f"step: {self.timesteps[0]} -- place")
                 action, info, new_state = self._place(obs, info)
@@ -623,6 +657,12 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
             # Since heuristic nav is not properly vectorized, this agent currently only supports 1 env
             # _switch_to_next_skill is thus invoked with e=0
+            # if new_state and self.centering_time >= 20:
+            #     self.reset()
+            #     info["skill_done"] = info["curr_skill"]
+            #     action = self._switch_to_next_skill(0, new_state, info)
+            #     # action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [-0.2, 0, 0])
+            #     self.centering_time = 0
             if new_state:
                 # mark the current skill as done
                 info["skill_done"] = info["curr_skill"]
@@ -630,13 +670,39 @@ class OpenVocabManipAgent(ObjectNavAgent):
                     action is None
                 ), f"action must be None when switching states, found {action} instead"
                 action = self._switch_to_next_skill(0, new_state, info)
+        
+        # if action == DiscreteNavigationAction.TURN_RIGHT:
+        #     action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0, -(30*3.14)/180.0])
+        # elif action == DiscreteNavigationAction.TURN_LEFT:
+        #     action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0, (30*3.14)/180.0])        
+        
         # update the curr skill to the new skill whose action will be executed
         info["curr_skill"] = Skill(self.states[0].item()).name
         if self.verbose:
             print(
                 f'Executing skill {info["curr_skill"]} at timestep {self.timesteps[0]}'
             )
-        # @cyw
-        if debug:
-            print(f"initial semantic_map:{np.unique(info['semantic_map'])}")
+        
+        if (action == DiscreteNavigationAction.MOVE_FORWARD) or (type(action) == ContinuousNavigationAction \
+            and (action.xyt[0] > 1e-2 or action.xyt[1] > 1e-2)):
+            self.forward_time += 1
+        else:
+            self.forward_time = 0
+            
+        if self.forward_time >= 20:
+            action = ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, 0, (180*3.14)/180.0])
+            self.forward_time = 0
+            self.reset()
+        
+        if type(action) == ContinuousNavigationAction and \
+            ((abs(action.xyt[0]) < 0.1 and abs(action.xyt[0]) > 1e-2) \
+                or (abs(action.xyt[1]) < 0.1 and abs(action.xyt[1]) > 1e-2) \
+                or (abs(action.xyt[2]) < (5*3.14)/180.0 and abs(action.xyt[2]) > 1e-2)):
+            if abs(action.xyt[0]) > 1e-2:
+                action.xyt[0] = 0.1*(action.xyt[0]/abs(action.xyt[0]))
+            elif abs(action.xyt[1]) > 1e-2:
+                action.xyt[1] = 0.1*(action.xyt[1]/abs(action.xyt[1]))
+            elif abs(action.xyt[2]) > 1e-2:
+                action.xyt[2] = ((10*3.14)/180.0)*(action.xyt[2]/abs(action.xyt[2]))
+                
         return action, info, obs

@@ -6,6 +6,7 @@
 # -*- coding: utf-8 -*-
 # quick fix for import
 
+import sys
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
 
@@ -14,10 +15,11 @@ import torch
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
 
-import sys
-# sys.path.append(r'/raid/home-robot/gyzp')
-# import extract
-from PIL import Image 
+sys.path.append(r"/raid/home-robot/gyzp/utils")
+import json
+
+from dataset.extract import extract_goal_object, extract_labels
+from PIL import Image
 
 labels_counter = 0
 
@@ -41,6 +43,10 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         super().__init__(config, device_id=device_id)
         print("Exploration Agent created")
         self.args = args
+
+        labels_file_path = "/raid/home-robot/projects/real_world_ovmm/configs/example_cat_map.json"
+        with open(labels_file_path, "r") as f:
+            self.labels_dict = json.load(f).get("obj_category_to_obj_category_id")
 
     def _explore(
         self, obs: Observations, info: Dict[str, Any]
@@ -76,7 +82,7 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         self, obs: Observations
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
         # /raid/home-robot/src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml
-        
+
         """State machine"""
 
         if self.timesteps[0] == 0:
@@ -88,15 +94,8 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
             obs.task_observations["semantic_frame"] = None
         info = self._get_info(obs)
 
-        # global labels_counter
-        # Image.fromarray(obs.rgb, "RGB").save('/raid/home-robot/gyzp/data/images/train/' +
-        #                        str(labels_counter) + '.png')
-        # extract.extract_labels(obs.semantic, '/raid/home-robot/gyzp/data/labels/train/' +
-        #                        str(labels_counter) + '.txt', obs.rgb)       
-        labels_counter += 1
-
         self.timesteps[0] += 1
-        
+
         # is_finished = False
         action = None
 
@@ -106,6 +105,28 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
                 action, info, new_state = self._explore(obs, info)
             else:
                 raise ValueError
+
+        goal_object_name = info["goal_name"].split(" ")[1]
+
+        global labels_counter
+        # extract_labels(
+        #     obs.semantic,
+        #     obs.rgb,
+        #     "/raid/home-robot/gyzp/data/receptacle/val/labels/" + str(labels_counter) + ".txt",
+        #     "/raid/home-robot/gyzp/data/receptacle/val/images/" + str(labels_counter) + ".png",
+        #     "/raid/home-robot/gyzp/data/receptacle/val/marked/"
+        # )
+        extract_goal_object(
+            obs.semantic,
+            obs.rgb,
+            "/raid/home-robot/gyzp/data/goal/val/labels/" + str(labels_counter) + "-" + goal_object_name + ".txt",
+            "/raid/home-robot/gyzp/data/goal/val/images/" + str(labels_counter) + "-" + goal_object_name + ".png",
+            "/raid/home-robot/gyzp/data/goal/val/marked/",
+            goal_object_name,
+            self.labels_dict.get(goal_object_name),
+            "/raid/home-robot/gyzp/data/goal/val/pixel/" + str(labels_counter) + ".txt",
+        )
+        labels_counter += 1
 
         # update the curr skill to the new skill whose action will be executed
         info["curr_skill"] = Skill(self.states[0].item()).name
