@@ -111,9 +111,9 @@ class GroundedSAMPerception(PerceptionModule):
             obs.task_observations["semantic_frame"]: segmentation visualization
              image of shape (H, W, 3)
         """
-
         if draw_instance_predictions:
             raise NotImplementedError
+
         # Predict classes and hyper-param for GroundingDINO
         CLASSES = self.custom_vocabulary
         height, width, _ = obs.rgb.shape

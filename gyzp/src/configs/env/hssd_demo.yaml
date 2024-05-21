@@ -25,7 +25,7 @@ ENVIRONMENT:
 
 EVAL_VECTORIZED:
   simulator_gpu_ids: [1, 2, 3, 4, 5, 6, 7] # IDs of GPUs to use for vectorized environments
-  split: val                # eval split
+  split: train                # eval split
   num_episodes_per_env: null # number of eval episodes per environment
   record_videos: 0          # 1: record videos from printed images, 0: don't
   record_planner_videos: 0  # 1: record planner videos (if record videos), 0: don't

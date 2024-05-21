@@ -18,10 +18,14 @@ from utils.config_utils import (
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
 from home_robot.agent.ovmm_agent.ovmm_exploration_agent import OVMMExplorationAgent
 from home_robot.agent.ovmm_agent.random_agent import RandomAgent
+# @cyw
+from home_robot.agent.ovmm_agent.ovmm_agent_pick_place import OpenVocabManipAgent_pick_place
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
+# @cyw
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 
 if __name__ == "__main__":
@@ -55,7 +59,7 @@ if __name__ == "__main__":
         "--agent_type",
         type=str,
         default="baseline",
-        choices=["baseline", "random", "explore"],
+        choices=["baseline", "random", "explore", "zxy_pick_place"],
         help="Agent to evaluate",
     )
     parser.add_argument(
@@ -125,12 +129,17 @@ if __name__ == "__main__":
     agent_config = create_agent_config(env_config, baseline_config)
 
     device_id = env_config.habitat.simulator.habitat_sim_v0.gpu_device_id
+    # # @cyw
+    # device_id = 1 
 
     # create agent
     if args.agent_type == "random":
         agent = RandomAgent(agent_config, device_id=device_id)
     elif args.agent_type == "explore":
         agent = OVMMExplorationAgent(agent_config, device_id=device_id, args=args)
+    # @cyw
+    elif args.agent_type == "zxy_pick_place": #使用zxy修改的agent
+        agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
     else:
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 

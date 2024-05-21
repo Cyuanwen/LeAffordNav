@@ -1,0 +1,994 @@
+Distance to goal 27.313000567495326
+Distance in cm: 136.56500283747664 > 50.0
+continuous actions for exploring
+agent angle = 90.0
+angle stg goal = 75.96375653207353
+angle final goal = 113.74949449286676
+0.2 0.05 rel ang = 14.036243467926468
+-----------------
+
+
+labels_counter:  17
+Executing skill EXPLORE at timestep 18
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move screwdriver from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (243, 242)
+  - delta = 3 2
+Distance (m): 0.18027756377319945
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 113.74949449286676
+Distance to goal 27.313000567495326
+Distance in cm: 136.56500283747664 > 50.0
+continuous actions for exploring
+agent angle = 90.0
+angle stg goal = 56.309932474020215
+angle final goal = 113.74949449286676
+0.15000000000000002 0.1 rel ang = 33.690067525979785
+-----------------
+
+
+labels_counter:  18
+Executing skill EXPLORE at timestep 19
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move screwdriver from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (243, 242)
+  - delta = 3 2
+Distance (m): 0.18027756377319945
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 83.74949449286676
+Distance to goal 27.313000567495326
+Distance in cm: 136.56500283747664 > 50.0
+continuous actions for exploring
+agent angle = 60.0
+angle stg goal = 56.309932474020215
+angle final goal = 83.74949449286676
+0.15000000000000002 0.1 rel ang = 3.690067525979785
+-----------------
+
+
+labels_counter:  19
+Executing skill EXPLORE at timestep 20
+Max agent step reached, forcing the agent to quit and wrapping up...
+  0%|                                                                                                              | 1/36477 [00:10<108:32:04, 10.71s/it]Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::GltfImporter::material(): property fromMI is an object, skipping
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Initializing episode...
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  20
+Executing skill EXPLORE at timestep 1
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  21
+Executing skill EXPLORE at timestep 2
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  22
+Executing skill EXPLORE at timestep 3
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  23
+Executing skill EXPLORE at timestep 4
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  24
+Executing skill EXPLORE at timestep 5
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  25
+Executing skill EXPLORE at timestep 6
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  26
+Executing skill EXPLORE at timestep 7
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  27
+Executing skill EXPLORE at timestep 8
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  28
+Executing skill EXPLORE at timestep 9
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+
+labels_counter:  29
+Executing skill EXPLORE at timestep 10
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (243, 243)
+  - delta = 3 3
+Distance (m): 0.21213203435596423
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -164.99996948242188
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 60.000030517578125
+angle stg goal = 45.0
+angle final goal = -164.99996948242188
+0.15000000000000002 0.15000000000000002 rel ang = 15.000030517578125
+-----------------
+
+
+labels_counter:  30
+Executing skill EXPLORE at timestep 11
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 165.00003051757812
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 30.000030517578125
+angle stg goal = 168.6900675259798
+angle final goal = 165.00003051757812
+0.05 -0.25 rel ang = -138.69003700840167
+-----------------
+
+
+labels_counter:  31
+Executing skill EXPLORE at timestep 12
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -164.99996948242188
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 60.000030517578125
+angle stg goal = 168.6900675259798
+angle final goal = -164.99996948242188
+0.05 -0.25 rel ang = -108.69003700840167
+-----------------
+
+
+labels_counter:  32
+Executing skill EXPLORE at timestep 13
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -134.99996948242188
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 90.00003051757812
+angle stg goal = 168.6900675259798
+angle final goal = -134.99996948242188
+0.05 -0.25 rel ang = -78.69003700840165
+-----------------
+
+
+labels_counter:  33
+Executing skill EXPLORE at timestep 14
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -104.99996948242188
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 120.00003051757812
+angle stg goal = 168.6900675259798
+angle final goal = -104.99996948242188
+0.05 -0.25 rel ang = -48.690037008401646
+-----------------
+
+
+labels_counter:  34
+Executing skill EXPLORE at timestep 15
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -74.99996948242188
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = 150.00003051757812
+angle stg goal = 168.6900675259798
+angle final goal = -74.99996948242188
+0.05 -0.25 rel ang = -18.690037008401646
+-----------------
+
+
+labels_counter:  35
+Executing skill EXPLORE at timestep 16
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -44.99993896484375
+Distance to goal 49.49747468305833
+Distance in cm: 247.48737341529164 > 50.0
+continuous actions for exploring
+agent angle = -179.99993896484375
+angle stg goal = 168.6900675259798
+angle final goal = -44.99993896484375
+0.05 -0.25 rel ang = 11.30999350917648
+-----------------
+
+
+labels_counter:  36
+Executing skill EXPLORE at timestep 17
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (241, 235)
+  - delta = 1 -5
+Distance (m): 0.25495097567963926
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -45.881342961425844
+Distance to goal 45.967379738244816
+Distance in cm: 229.83689869122406 > 50.0
+continuous actions for exploring
+agent angle = -179.99993896484375
+angle stg goal = 168.6900675259798
+angle final goal = -45.881342961425844
+0.05 -0.25 rel ang = 11.30999350917648
+-----------------
+
+
+labels_counter:  37
+Executing skill EXPLORE at timestep 18
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (243, 236)
+  - delta = 3 -4
+Distance (m): 0.25
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -44.99993896484375
+Distance to goal 42.42640687119285
+Distance in cm: 212.13203435596427 > 50.0
+continuous actions for exploring
+agent angle = -179.99993896484375
+angle stg goal = 143.13010235415598
+angle final goal = -44.99993896484375
+0.15000000000000002 -0.2 rel ang = 36.8699586810003
+-----------------
+
+
+labels_counter:  38
+Executing skill EXPLORE at timestep 19
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 6
+end_recep goal = 18
+[ObjectNav] Goal name:  ['Move lamp from chair to table']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (243, 236)
+  - delta = 3 -4
+Distance (m): 0.25
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -74.99993896484375
+Distance to goal 42.42640687119285
+Distance in cm: 212.13203435596427 > 50.0
+continuous actions for exploring
+agent angle = 150.00006103515625
+angle stg goal = 143.13010235415598
+angle final goal = -74.99993896484375
+0.15000000000000002 -0.2 rel ang = 6.86995868100027
+-----------------
+
+
+labels_counter:  39
+Executing skill EXPLORE at timestep 20
+Max agent step reached, forcing the agent to quit and wrapping up...
+  0%|                                                                                                               | 2/36477 [00:18<88:39:37,  8.75s/it]Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Initializing episode...
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  40
+Executing skill EXPLORE at timestep 1
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  41
+Executing skill EXPLORE at timestep 2
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  42
+Executing skill EXPLORE at timestep 3
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  43
+Executing skill EXPLORE at timestep 4
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  44
+Executing skill EXPLORE at timestep 5
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  45
+Executing skill EXPLORE at timestep 6
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  46
+Executing skill EXPLORE at timestep 7
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  47
+Executing skill EXPLORE at timestep 8
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  48
+Executing skill EXPLORE at timestep 9
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+
+labels_counter:  49
+Executing skill EXPLORE at timestep 10
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 52.23477294641842
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = 59.99993896484375
+angle stg goal = -135.0
+angle final goal = 52.23477294641842
+-0.2 -0.2 rel ang = -165.00006103515625
+-----------------
+
+
+labels_counter:  50
+Executing skill EXPLORE at timestep 11
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 82.23477294641842
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = 89.99993896484375
+angle stg goal = -135.0
+angle final goal = 82.23477294641842
+-0.2 -0.2 rel ang = -135.00006103515625
+-----------------
+
+
+labels_counter:  51
+Executing skill EXPLORE at timestep 12
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 112.23480346399654
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = 119.99996948242188
+angle stg goal = -135.0
+angle final goal = 112.23480346399654
+-0.2 -0.2 rel ang = -105.00003051757812
+-----------------
+
+
+labels_counter:  52
+Executing skill EXPLORE at timestep 13
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 142.23480346399654
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = 149.99996948242188
+angle stg goal = -135.0
+angle final goal = 142.23480346399654
+-0.2 -0.2 rel ang = -75.00003051757812
+-----------------
+
+
+labels_counter:  53
+Executing skill EXPLORE at timestep 14
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 172.23480346399654
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = 179.99996948242188
+angle stg goal = -135.0
+angle final goal = 172.23480346399654
+-0.2 -0.2 rel ang = -45.000030517578125
+-----------------
+
+
+labels_counter:  54
+Executing skill EXPLORE at timestep 15
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: -157.76516601842533
+Distance to goal 22.20360331117452
+Distance in cm: 111.01801655587259 > 50.0
+continuous actions for exploring
+agent angle = -150.0
+angle stg goal = -135.0
+angle final goal = -157.76516601842533
+-0.2 -0.2 rel ang = -15.0
+-----------------
+
+
+labels_counter:  55
+Executing skill EXPLORE at timestep 16
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (235, 238)
+  - delta = -5 -2
+Distance (m): 0.2692582403567252
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 30.0
+Distance to goal 24.0
+Distance in cm: 120.0 > 50.0
+continuous actions for exploring
+agent angle = -150.0
+angle stg goal = -111.80140948635182
+angle final goal = 30.0
+-0.25 -0.1 rel ang = -38.198590513648185
+-----------------
+
+
+labels_counter:  56
+Executing skill EXPLORE at timestep 17
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (235, 238)
+  - delta = -5 -2
+Distance (m): 0.2692582403567252
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 62.38594403038883
+Distance to goal 24.020824298928627
+Distance in cm: 120.10412149464314 > 50.0
+continuous actions for exploring
+agent angle = -120.0
+angle stg goal = -111.80140948635182
+angle final goal = 62.38594403038883
+-0.25 -0.1 rel ang = -8.198590513648185
+-----------------
+
+
+labels_counter:  57
+Executing skill EXPLORE at timestep 18
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (236, 236)
+  - delta = -4 -4
+Distance (m): 0.282842712474619
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 72.80426606528675
+Distance to goal 22.561028345356956
+Distance in cm: 112.80514172678478 > 50.0
+continuous actions for exploring
+agent angle = -120.0
+angle stg goal = -135.0
+angle final goal = 72.80426606528675
+-0.2 -0.2 rel ang = 15.0
+-----------------
+
+
+labels_counter:  58
+Executing skill EXPLORE at timestep 19
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 9
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move cup from counter to chair']
+
+--- Planning ---
+Found goal: 0
+Goal points provided: True
+Current pose: [240 240]
+Short term goal: (237, 236)
+  - delta = -3 -4
+Distance (m): 0.25
+Replan: False
+-----------------
+Found reachable goal: 0
+Stop: False
+Angle to goal: 87.75854060106002
+Distance to goal 21.470910553583888
+Distance in cm: 107.35455276791944 > 50.0
+continuous actions for exploring
+agent angle = -120.0
+angle stg goal = -143.13010235415598
+angle final goal = 87.75854060106002
+-0.15000000000000002 -0.2 rel ang = 23.13010235415598
+-----------------
+
+
+labels_counter:  59
+Executing skill EXPLORE at timestep 20
+Max agent step reached, forcing the agent to quit and wrapping up...
+  0%|                                                                                                               | 3/36477 [00:25<81:59:56,  8.09s/it]Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::GltfImporter::material(): property fromMI is an object, skipping
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 2 pixels
+Trade::BasisImporter::image2D(): Y-flipping a compressed image that's not whole blocks, the result will be shifted by 3 pixels
+Initializing episode...
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  60
+Executing skill EXPLORE at timestep 1
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  61
+Executing skill EXPLORE at timestep 2
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  62
+Executing skill EXPLORE at timestep 3
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  63
+Executing skill EXPLORE at timestep 4
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  64
+Executing skill EXPLORE at timestep 5
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  65
+Executing skill EXPLORE at timestep 6
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']
+
+
+labels_counter:  66
+Executing skill EXPLORE at timestep 7
+[OVMM AGENT] step heuristic nav policy
+object goal = 1
+start_recep goal = 7
+end_recep goal = 6
+[ObjectNav] Goal name:  ['Move toy_food from chest_of_drawers to chair']

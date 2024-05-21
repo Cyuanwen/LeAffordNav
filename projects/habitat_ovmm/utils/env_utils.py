@@ -35,3 +35,17 @@ def create_ovmm_env_fn(config: "DictConfig") -> HabitatOpenVocabManipEnv:
     habitat_env.seed(habitat_config.seed)
     env = HabitatOpenVocabManipEnv(habitat_env, config, dataset=dataset)
     return env
+
+# @cyw habitat-lab/habitat/gym/gym_definitions.py rl 训练里面的 env 初始化
+# def make_gym_from_config(config: "DictConfig", dataset=None) -> gym.Env:
+#     """
+#     From a habitat-lab or habitat-baseline config, create the associated gym environment.
+#     """
+#     if "habitat" in config:
+#         config = config.habitat
+#     env_class_name = _get_env_name(config)
+#     env_class = get_env_class(env_class_name)
+#     assert (
+#         env_class is not None
+#     ), f"No environment class with name `{env_class_name}` was found, you need to specify a valid one with env_task"
+#     return make_env_fn(env_class=env_class, config=config, dataset=dataset)

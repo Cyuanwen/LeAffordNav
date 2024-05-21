@@ -131,6 +131,18 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 21. 应该好好看看安装路径 /raid/home-robot/install_deps.sh
 
+22. baseline rl nav使用离散动作，place and pick 使用连续动作
+
+23. src/home_robot/home_robot/manipulation/heuristic_pick_policy.py 有单独的启发式抓和放策略
+
+24. src/third_party/habitat-lab/test/test_habitat_task.py 这里面有用连续动作的代码
+
+25. src/third_party/habitat-lab/habitat-lab/habitat/config/CONFIG_KEYS.md 有关于orcal navigation的说明（或许应该看看RL训练pick，place之类的东西）
+
+26. src/third_party/habitat-lab/habitat-baselines/habitat_baselines/run.py 是ppo训练代码
+
+27. OVMMFindRecepPhaseSuccess 指的是 机器人拿起东西，导航到容器success distance以内，并且在 success_angle 以内朝向容器
+
 ## 各个split数据量大小
 val: 1199
 minival: 10
@@ -163,6 +175,7 @@ obj_goal_idx, start_recep_idx, end_recep_idx = 1, 2, 3
 2. 多进程，参考multiprocess, ray
 3. 发现目标后，围着目标转一圈，也合理也不合理，在地图上是围着饶了一圈，但是并没有真正的在视角上饶一圈，没有窥探全貌
 4. 从地图来看，recep是容易发现的，其实frontier并没有发生什么重大作用
+5. 抓东西和放东西，仿真的视角非常不合理，什么都看不见了
 
 
 ## 以为的bug
@@ -185,12 +198,14 @@ start = [
 1. 为什么非gt 会这么大的影响rl place 效果？ rl有没有针对非gt训练
 
 ## idea
-1. 选择目标点的时候考虑可交互性,拿取、放置
+1. 选择目标点的时候考虑可交互性,拿取、放置(如果能训出来一个看到rgb，知道在什么位置交互，什么位置能看清物体，怎么找完大容器，那就很好)
 2. 加上gaze at object
 3. 重新训练place 策略
 4. 加上场景布局匹配
 
 5. 分割模型怎么着都要微调
+
+6. 路径规划算法：[104] J. J. Kuffner and S. M. LaValle. Rrt-connect: An efficient approach to single-query path planning. In ICRA, 2000.
 
 ## 环境配置版本说明
 cyw/ovmm_env_20240513.yml 为配置yolo-world模型前的环境配置

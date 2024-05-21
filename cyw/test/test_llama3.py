@@ -1,3 +1,7 @@
+'''
+此代码无法运行，如果要生成llama的语义常识，使用 cyw/llama3_utils
+'''
+
 # from langchain_community.llms import Ollama
 # llm = Ollama(model="llama3:8b")
 # llm.invoke("Why is the sky blue?")

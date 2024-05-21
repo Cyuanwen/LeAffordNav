@@ -109,6 +109,8 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         goal_object_name = info["goal_name"].split(" ")[1]
 
         global labels_counter
+
+        # print("\n\n======= labels_counter: ", labels_counter)
         # extract_labels(
         #     obs.semantic,
         #     obs.rgb,
@@ -116,17 +118,18 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         #     "/raid/home-robot/gyzp/data/receptacle/val/images/" + str(labels_counter) + ".png",
         #     "/raid/home-robot/gyzp/data/receptacle/val/marked/"
         # )
-        extract_goal_object(
-            obs.semantic,
-            obs.rgb,
-            "/raid/home-robot/gyzp/data/goal/val/labels/" + str(labels_counter) + "-" + goal_object_name + ".txt",
-            "/raid/home-robot/gyzp/data/goal/val/images/" + str(labels_counter) + "-" + goal_object_name + ".png",
-            "/raid/home-robot/gyzp/data/goal/val/marked/",
-            goal_object_name,
-            self.labels_dict.get(goal_object_name),
-            "/raid/home-robot/gyzp/data/goal/val/pixel/" + str(labels_counter) + ".txt",
-        )
+        # extract_goal_object(
+        #     obs.semantic,
+        #     obs.rgb,
+        #     "/raid/home-robot/gyzp/data/goal/train/labels/" + str(labels_counter) + "-" + goal_object_name + ".txt",
+        #     "/raid/home-robot/gyzp/data/goal/train/images/" + str(labels_counter) + "-" + goal_object_name + ".png",
+        #     "/raid/home-robot/gyzp/data/goal/train/marked/",
+        #     goal_object_name,
+        #     self.labels_dict.get(goal_object_name),
+        #     "/raid/home-robot/gyzp/data/goal/train/pixel/" + str(labels_counter) + ".txt",
+        # )
         labels_counter += 1
+
 
         # update the curr skill to the new skill whose action will be executed
         info["curr_skill"] = Skill(self.states[0].item()).name
