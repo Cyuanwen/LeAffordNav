@@ -61,12 +61,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force_step",
         type=int,
-        default=20,
+        default=1000,
         help="force to switch to new episode after a number of steps",
     )
     parser.add_argument(
         "--data_dir",
         type=str,
+        # default="/raid/home-robot/gyzp/src/datadump",
         default=None,
         help="whether to save obseration history for data collection",
     )

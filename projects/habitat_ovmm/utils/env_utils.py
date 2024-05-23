@@ -17,6 +17,10 @@ from home_robot_sim.env.habitat_ovmm_env.habitat_ovmm_env import (
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
+# @cyw
+from home_robot_sim.env.habitat_ovmm_env.habitat_place_env import (
+    HabitatPlaceEnv,
+)
 
 def create_ovmm_env_fn(config: "DictConfig") -> HabitatOpenVocabManipEnv:
     """
@@ -36,16 +40,21 @@ def create_ovmm_env_fn(config: "DictConfig") -> HabitatOpenVocabManipEnv:
     env = HabitatOpenVocabManipEnv(habitat_env, config, dataset=dataset)
     return env
 
-# @cyw habitat-lab/habitat/gym/gym_definitions.py rl 训练里面的 env 初始化
-# def make_gym_from_config(config: "DictConfig", dataset=None) -> gym.Env:
-#     """
-#     From a habitat-lab or habitat-baseline config, create the associated gym environment.
-#     """
-#     if "habitat" in config:
-#         config = config.habitat
-#     env_class_name = _get_env_name(config)
-#     env_class = get_env_class(env_class_name)
-#     assert (
-#         env_class is not None
-#     ), f"No environment class with name `{env_class_name}` was found, you need to specify a valid one with env_task"
-#     return make_env_fn(env_class=env_class, config=config, dataset=dataset)
+# @cyw
+def create_place_env_fn(config: "DictConfig") -> HabitatPlaceEnv:
+    """
+    Creates an environment for the OVMM Place task.
+
+    Creates habitat environment from config and wraps it into HabitatPlaceEnv.
+
+    :param config: configuration for the environment.
+    :return: environment instance.
+    """
+    habitat_config = config.habitat
+    dataset = make_dataset(habitat_config.dataset.type, config=habitat_config.dataset)
+    env_class_name = _get_env_name(config)
+    env_class = get_env_class(env_class_name)
+    habitat_env = env_class(config=habitat_config, dataset=dataset)
+    habitat_env.seed(habitat_config.seed)
+    env = HabitatPlaceEnv(habitat_env, config, dataset=dataset)
+    return env

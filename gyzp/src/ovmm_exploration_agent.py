@@ -7,6 +7,7 @@
 # quick fix for import
 
 import sys
+import os
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
 
@@ -79,7 +80,7 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         self.world_representation = None
 
     def act(
-        self, obs: Observations
+        self, obs: Observations, dict_info: Dict[str, Any] = None
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
         # /raid/home-robot/src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml
 
@@ -105,19 +106,31 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
                 action, info, new_state = self._explore(obs, info)
             else:
                 raise ValueError
-
-        goal_object_name = info["goal_name"].split(" ")[1]
+        #############################################################
+        
+        # goal_object_name = info["goal_name"].split(" ")[1]
 
         global labels_counter
 
-        # print("\n\n======= labels_counter: ", labels_counter)
-        # extract_labels(
-        #     obs.semantic,
-        #     obs.rgb,
-        #     "/raid/home-robot/gyzp/data/receptacle/val/labels/" + str(labels_counter) + ".txt",
-        #     "/raid/home-robot/gyzp/data/receptacle/val/images/" + str(labels_counter) + ".png",
-        #     "/raid/home-robot/gyzp/data/receptacle/val/marked/"
-        # )
+        print("\n\n======= labels_counter: ", labels_counter)
+
+        # if dict_info is not None:
+        #     for key, value in dict_info.items():
+        #         print(key, value)
+
+        scene_id = dict_info['current_episode'].scene_id.split('/')[-1].split('.')[0]
+        root_path = "/raid/home-robot/gyzp/data/data2/receptacle/val"
+
+        extract_labels(
+            semantic_map = obs.semantic,
+            image = obs.rgb,
+            label_save_path = os.path.join(root_path, "labels", scene_id, str(labels_counter) + ".txt"),
+            image_save_path = os.path.join(root_path, "images", scene_id, str(labels_counter) + ".png"),
+            # marked_image_save_path = os.path.join(root_path, "marked", scene_id),
+            depth_map = obs.depth,
+            info_save_path = os.path.join(root_path, "depth", scene_id, str(labels_counter) + ".txt"),
+        )
+
         # extract_goal_object(
         #     obs.semantic,
         #     obs.rgb,
@@ -128,8 +141,10 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         #     self.labels_dict.get(goal_object_name),
         #     "/raid/home-robot/gyzp/data/goal/train/pixel/" + str(labels_counter) + ".txt",
         # )
+
         labels_counter += 1
 
+        #############################################################
 
         # update the curr skill to the new skill whose action will be executed
         info["curr_skill"] = Skill(self.states[0].item()).name

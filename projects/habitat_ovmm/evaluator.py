@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
     from home_robot.core.abstract_agent import Agent
 
+# @cyw
+from utils.env_utils import create_place_env_fn
 
 class EvaluationType(Enum):
     """Whether we run local or remote evaluation."""
@@ -468,7 +470,9 @@ class OVMMEvaluator(PPOTrainer):
         :return: dict containing metrics tracked by environment.
         """
         if evaluation_type == EvaluationType.LOCAL.value:
-            self._env = create_ovmm_env_fn(self.config)
+            # self._env = create_ovmm_env_fn(self.config)
+            # # @cyw
+            self._env = create_place_env_fn(self.config)
             return self.local_evaluate(agent, num_episodes)
         elif evaluation_type == EvaluationType.LOCAL_VECTORIZED.value:
             self._env = create_ovmm_env_fn(self.config)

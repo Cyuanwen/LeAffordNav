@@ -35,6 +35,13 @@
 
  - 2024-05-07
  1. psl 迁移完成，能够跑起来，但是运行起来有些奇怪，还需调试
+
+ - 2024-05-22
+ 1. 将place 任务单独拎出来，主要是修改配置文件，其中因为 place 任务 动作空间和观测空间都与 ovmm 任务不同，因此，创建了 一个 place_agent 和 place_env， 文件位置与 ovmm项目相关文件并列。配置文件的修改具体如下：
+ sensor修改：尽可能地把所有能获取的观测都加进去
+ act 修改： max_forward, max_turn, max_joint_delta，因为动作转换的时候会用到，因此 将它们修改为与ovmm 一致。但是目前动作空间似乎还是有些问题，输出 stop 的时候，环境没有stop
+ 另：如果要看到 third_rgb ，不是在配置文件里修改，将代码运行参数 env_eval 设置为hssd_demo 即可（虽然不知道为啥会这样）
+  
  
 ## TODO
 1. src/home_robot/home_robot/navigation_policy/object_navigation/objectnav_frontier_exploration_policy.py 计算前端点没有考虑障碍物，只考虑了探索过的区域的边缘，是否改为和ESC一样，去掉障碍物
@@ -143,6 +150,14 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 27. OVMMFindRecepPhaseSuccess 指的是 机器人拿起东西，导航到容器success distance以内，并且在 success_angle 以内朝向容器
 
+28. gym 强化学习环境和一般的环境好像不同
+
+29. projects/habitat_ovmm/receptacles_data_collection.py 有搜集容器数据的代码
+
+30. projects/habitat_objectnav/files_to_adapt/eval_env_wrapper.py 计算了 episode, 里面有场景、地图
+
+31. habitat-lab/habitat/config/CONFIG_KEYS.md 配置文件说明要好好读一读，比如有如下关键信息： |habitat.task.actions.oracle_nav_action| Rearrangement Only, Oracle navigation action. This action takes as input a discrete ID which refers to an object in the PDDL domain. The oracle navigation controller then computes the actions to navigate to that desired object.| 
+
 ## 各个split数据量大小
 val: 1199
 minival: 10
@@ -158,6 +173,8 @@ train:
 1. init 最初版本
 2. full semantic，能够建立所有recep的语义地图，并且已从llama3-8b中抽取物体共现关系
 3. PSL alone, 单独增加 cyw/test/psl_agent.py 文件，并调试通
+4. grounding sam 配置环境，加上grounding sam ,代码没怎么修改
+5. place_before 修改 make_env函数之前
 
 ## 潜在bug
 1. 导航的mask好像是各个方向都可以走，这样会导致碰撞

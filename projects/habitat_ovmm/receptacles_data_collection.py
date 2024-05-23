@@ -42,6 +42,26 @@ all_receptacles = [
     "chair",
     "bench",
 ]
+# @cyw
+# {'sink', 'wardrobe', 'filing_cabinet'} 缺少 21 类中的这三类
+from habitat.core.simulator import AgentState
+import cv2
+show_image = True
+
+
+# @cyw
+def get_agent_state_position(viewpoints_matrix,view_idx) -> AgentState:
+    '''
+        抽取viewpoint位置
+    '''
+    view = viewpoints_matrix[view_idx]
+    position, rotation, iou = (
+        view[:3],
+        view[3:7],
+        view[7].item(),
+    )
+    agent_state = AgentState(position, rotation)
+    return agent_state
 
 
 def extract_scene_id(scene_id: str) -> str:
@@ -51,10 +71,13 @@ def extract_scene_id(scene_id: str) -> str:
     _, after = before.split("uncluttered/")
     return after
 
-
+# @cyw
+# def get_init_scene_episode_count_dict(
+#     env: HabitatOpenVocabManipEnv,
+# ) -> Tuple(dict, int):
 def get_init_scene_episode_count_dict(
     env: HabitatOpenVocabManipEnv,
-) -> Tuple(dict, int):
+) -> Tuple[dict, int]:
     """Returns a dictionary containing entries for all (scene, episode) pairs
     with count value initialized as 0"""
     count_dict = {}
@@ -80,7 +103,8 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
     while True:
         # Get a new episode
         env.reset()
-        episode = env.get_current_episode()
+        # episode = env.get_current_episode()
+        episode = env._dataset.episodes[count_episodes]
         scene_id = extract_scene_id(episode.scene_id)
 
         # Check if you have iterated through all episodes and if yes, break the loop
@@ -100,12 +124,16 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
             receptacle_positions[scene_id][episode.goal_recep_category] = set()
         for recep in episode.candidate_goal_receps:
             recep_position = list(recep.position)
-            view_point_position = list(recep.view_points[0].agent_state.position)
+            # view_point_position = list(recep.view_points[0].agent_state.position)
+            # @cyw
+            view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,recep.view_points[0]).position)
             receptacle_positions[scene_id][episode.goal_recep_category].add(
                 tuple(recep_position + view_point_position)
             )
-
-        if count_episodes == num_episodes:
+        # @cyw
+        # if count_episodes == num_episodes:
+        #     break
+        if count_episodes == 10:
             break
 
     os.makedirs(f"./{data_dir}", exist_ok=True)
@@ -118,7 +146,8 @@ def gen_receptacle_images(
 ):
     """Generates images of receptacles by episode for all scenes"""
 
-    sim = env.habitat_env.env._env._env._sim
+    # sim = env.habitat_env.env._env._env._sim
+    sim = env.habitat_env.env.habitat_env._sim
 
     # This is for iterating through all episodes once using only one env
     count_dict, num_episodes = get_init_scene_episode_count_dict(env)
@@ -179,11 +208,19 @@ def gen_receptacle_images(
                     physics_stability_steps=100,
                     orient_positions=recep_position[None],
                 )
-                sim.robot.base_pos = start_position
-                sim.robot.base_rot = start_rotation
-                sim.maybe_update_robot()
+                # @ cyw可能接口有变化，进行了一些修改
+                # sim.robot.base_pos = start_position               
+                # sim.robot.base_rot = start_rotation               
+                # sim.maybe_update_robot()
+                # recep_images.append(obs["robot_head_rgb"][:, :, :3][None])
+                sim.articulated_agent.base_pos = start_position
+                sim.articulated_agent.base_rot = start_rotation
+                sim.maybe_update_articulated_agent()
                 obs = sim.get_sensor_observations()
-                recep_images.append(obs["robot_head_rgb"][:, :, :3][None])
+                recep_images.append(obs["head_rgb"][:, :, :3][None])
+                if show_image:
+                    cv2.imshow("rgb",cv2.cvtColor(obs["head_rgb"],cv2.COLOR_BGR2RGB))
+                    cv2.waitKey()
 
             recep_images = np.concatenate(recep_images, axis=0)  # Shape is (N, H, W, 3)
             scene_ep_grp.create_dataset(recep, data=recep_images)
@@ -321,14 +358,16 @@ if __name__ == "__main__":
     # Create an env
     env = create_ovmm_env_fn(env_config)
 
-    # Aggregate receptacles position by scene using all episodes
-    receptacle_position_aggregate(args.data_dir, env)
+    # @cyw
+    # # Aggregate receptacles position by scene using all episodes
+    # receptacle_position_aggregate(args.data_dir, env)
 
     # Generate images of receptacles by episode
     gen_receptacle_images(args.data_dir, dataset_file, env)
 
-    # Generate templated Q/A per episode
-    gen_dataset_question(args.data_dir, dataset_file, env)
+    # @cyw
+    # # Generate templated Q/A per episode
+    # gen_dataset_question(args.data_dir, dataset_file, env)
 
     # Close the h5py file
     dataset_file.close()

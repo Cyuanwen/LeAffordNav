@@ -20,6 +20,7 @@ from home_robot.agent.ovmm_agent.ovmm_exploration_agent import OVMMExplorationAg
 from home_robot.agent.ovmm_agent.random_agent import RandomAgent
 # @cyw
 from home_robot.agent.ovmm_agent.ovmm_agent_pick_place import OpenVocabManipAgent_pick_place
+from home_robot.agent.ovmm_agent.place_agent import PlaceAgent
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         "--agent_type",
         type=str,
         default="baseline",
-        choices=["baseline", "random", "explore", "zxy_pick_place"],
+        choices=["baseline", "random", "explore", "zxy_pick_place","place"],
         help="Agent to evaluate",
     )
     parser.add_argument(
@@ -140,6 +141,8 @@ if __name__ == "__main__":
     # @cyw
     elif args.agent_type == "zxy_pick_place": #使用zxy修改的agent
         agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
+    elif args.agent_type =="place":
+        agent = PlaceAgent(agent_config, device_id=device_id)
     else:
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 

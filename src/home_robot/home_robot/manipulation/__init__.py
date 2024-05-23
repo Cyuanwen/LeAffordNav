@@ -6,3 +6,5 @@
 
 from .heuristic_pick_policy import HeuristicPickPolicy
 from .heuristic_place_policy import HeuristicPlacePolicy
+# @cyw
+from .heuristic_place_policy_only_place import HeuristicPlacePolicy_OnlyPlace

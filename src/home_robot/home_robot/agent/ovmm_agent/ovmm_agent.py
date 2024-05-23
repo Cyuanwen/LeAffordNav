@@ -23,6 +23,7 @@ from home_robot.perception.wrapper import (
 
 # @cyw
 debug = False
+show_rgb = True
 
 class Skill(IntEnum):
     NAV_TO_OBJ = auto()
@@ -596,6 +597,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
         
+        # @cyw
+        if show_rgb:
+            # cv2.imshow("rgb")
+            print("debug")
+     
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:
                 print(f"step: {self.timesteps[0]} -- nav to obj")

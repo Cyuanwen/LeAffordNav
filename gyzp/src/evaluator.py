@@ -272,7 +272,7 @@ class OVMMEvaluator(PPOTrainer):
             current_episode_metrics = {}
             obs_data = [observations]
             while not done:
-                action, info, _ = agent.act(observations)
+                action, info, _ = agent.act(observations, {"current_episode": current_episode})
                 # if "goal_name" in info:
                 #     print("goal : ", info["goal_name"])
                 observations, done, hab_info = self._env.apply_action(action, info)
