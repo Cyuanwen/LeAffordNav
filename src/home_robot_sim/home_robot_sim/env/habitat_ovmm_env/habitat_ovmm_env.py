@@ -2,7 +2,9 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+from ast import Str
 from enum import IntEnum
+from token import OP
 from typing import Any, Dict, Optional, Union
 
 import habitat
@@ -396,3 +398,47 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         self._last_habitat_obs = habitat_obs
         self._last_obs = self._preprocess_obs(habitat_obs)
         return self._last_obs, dones, infos
+
+    # @cyw
+    # 执行一些越权动作。主要是执行动作后，更新 self._last_habitat_obs
+    def set_position(self,position,rotation,debug=True):
+        '''
+        设置机器人位置
+        '''
+        episode = self.habitat_env.env.env.habitat_env.current_episode
+        # sim = self.habitat_env.env.env.habitat_env._sim #都一样
+        sim = self.habitat_env.env.habitat_env._sim
+        task = self.habitat_env.env.env.habitat_env.task
+        sim.articulated_agent.base_pos = position
+        sim.articulated_agent.base_rot = rotation
+        sim.maybe_update_articulated_agent()
+        habitat_obs = task._get_observations(episode)
+        self._last_habitat_obs = habitat_obs
+        self._last_obs = self._preprocess_obs(habitat_obs)
+        if debug:
+            print(f"episode_id {episode.episode_id}")
+        return self._last_obs
+
+    # @cyw
+    def pick_up_obj(
+        self,
+        obj:Optional[Str] = None,
+        debug = True,
+    ):
+        '''
+        强制拿起一个物体
+        TODO:之后了解仿真器用法，给定obj,拿起对应物体
+        '''
+        episode = self.habitat_env.env.env.habitat_env.current_episode
+        sim = self.habitat_env.env.env.habitat_env._sim
+        task = self.habitat_env.env.env.habitat_env.task
+        abs_obj_idx = sim.scene_obj_ids[task.abs_targ_idx]
+        sim.grasp_mgr.snap_to_obj(abs_obj_idx, force=True)
+        task.was_prev_holding = task.targ_idx
+        sim.maybe_update_articulated_agent()
+        habitat_obs = task._get_observations(episode)
+        self._last_habitat_obs = habitat_obs
+        self._last_obs = self._preprocess_obs(habitat_obs)
+        if debug:
+            print(f"episode_id {episode.episode_id}")
+        return self._last_obs

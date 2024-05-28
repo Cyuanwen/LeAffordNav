@@ -8,6 +8,7 @@ import argparse
 import os
 
 from evaluator import OVMMEvaluator
+from ovmm_exploration_agent import OVMMExplorationAgent
 from utils.config_utils import (
     create_agent_config,
     create_env_config,
@@ -16,7 +17,6 @@ from utils.config_utils import (
 )
 
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
-from ovmm_exploration_agent import OVMMExplorationAgent
 from home_robot.agent.ovmm_agent.random_agent import RandomAgent
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force_step",
         type=int,
-        default=1000,
+        default=200,
         help="force to switch to new episode after a number of steps",
     )
     parser.add_argument(

@@ -6,14 +6,15 @@
 # -*- coding: utf-8 -*-
 # quick fix for import
 
-import sys
 import os
+import sys
+from cmath import inf
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
 
 import torch
 
-from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
+from home_robot.agent.ovmm_agent.ovmm_agent_gyzp import OpenVocabManipAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
 
 sys.path.append(r"/raid/home-robot/gyzp/utils")
@@ -45,7 +46,9 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         print("Exploration Agent created")
         self.args = args
 
-        labels_file_path = "/raid/home-robot/projects/real_world_ovmm/configs/example_cat_map.json"
+        labels_file_path = (
+            "/raid/home-robot/projects/real_world_ovmm/configs/example_cat_map.json"
+        )
         with open(labels_file_path, "r") as f:
             self.labels_dict = json.load(f).get("obj_category_to_obj_category_id")
 
@@ -107,28 +110,36 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
             else:
                 raise ValueError
         #############################################################
-        
-        # goal_object_name = info["goal_name"].split(" ")[1]
+
+        goal_object_name = info["goal_name"].split(" ")[1]
+
+        # print("\n\n======= goal_object_name: ", info["goal_name"])
 
         global labels_counter
 
-        print("\n\n======= labels_counter: ", labels_counter)
+        print("======= labels_counter: ", labels_counter)
 
         # if dict_info is not None:
         #     for key, value in dict_info.items():
         #         print(key, value)
 
-        scene_id = dict_info['current_episode'].scene_id.split('/')[-1].split('.')[0]
-        root_path = "/raid/home-robot/gyzp/data/data2/receptacle/val"
+        scene_id = dict_info["current_episode"].scene_id.split("/")[-1].split(".")[0]
+        root_path = "/raid/home-robot/gyzp/data/data2/receptacle/train"
 
         extract_labels(
-            semantic_map = obs.semantic,
-            image = obs.rgb,
-            label_save_path = os.path.join(root_path, "labels", scene_id, str(labels_counter) + ".txt"),
-            image_save_path = os.path.join(root_path, "images", scene_id, str(labels_counter) + ".png"),
+            semantic_map=obs.semantic,
+            image=obs.rgb,
+            label_save_path=os.path.join(
+                root_path, "labels", scene_id, str(labels_counter) + ".txt"
+            ),
+            image_save_path=os.path.join(
+                root_path, "images", scene_id, str(labels_counter) + ".png"
+            ),
             # marked_image_save_path = os.path.join(root_path, "marked", scene_id),
-            depth_map = obs.depth,
-            info_save_path = os.path.join(root_path, "depth", scene_id, str(labels_counter) + ".txt"),
+            depth_map=obs.depth,
+            info_save_path=os.path.join(
+                root_path, "depth", scene_id, str(labels_counter) + ".txt"
+            ),
         )
 
         # extract_goal_object(

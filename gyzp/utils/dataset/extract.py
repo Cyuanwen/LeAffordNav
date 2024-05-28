@@ -1,3 +1,5 @@
+from distutils.log import info
+from itertools import count
 import os
 
 import cv2
@@ -12,7 +14,7 @@ def extract_labels(
     image_save_path,
     marked_image_save_path=None,
     depth_map=None,
-    depth_save_path=None,
+    info_save_path=None,
 ):
     exclude_tags = [0, 1, 23]
 
@@ -28,6 +30,8 @@ def extract_labels(
 
     if not os.path.exists(os.path.dirname(label_save_path)):
         os.makedirs(os.path.dirname(label_save_path))
+        with open(label_save_path, "w") as f:
+            pass
 
     if not os.path.exists(os.path.dirname(image_save_path)):
         os.makedirs(os.path.dirname(image_save_path))
@@ -35,19 +39,45 @@ def extract_labels(
     if marked_image_save_path and not os.path.exists(marked_image_save_path):
         os.makedirs(marked_image_save_path)
 
-    if depth_map is not None and depth_save_path:
-        if not os.path.exists(os.path.dirname(depth_save_path)):
-            os.makedirs(os.path.dirname(depth_save_path))
+    if depth_map is not None and info_save_path:
+        if not os.path.exists(os.path.dirname(info_save_path)):
+            os.makedirs(os.path.dirname(info_save_path))
+        with open(info_save_path, "w") as f:
+            pass
 
+    # Save image
     Image.fromarray(image, "RGB").save(image_save_path)
 
+    # image id
+    id = label_save_path.split("/")[-1].split(".")[0]
     
+    # traverse all tags
     for tag in target_tags:
         target = np.zeros_like(semantic_map, dtype=np.uint8)
         target[semantic_map == tag] = 1
         contours, hierarchy = cv2.findContours(
             target, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
+
+        valid_countour_count = 0
+        with open(label_save_path, "a") as f:
+            for contour in contours:
+                if contour.shape[0] < 3:  # at least 3 points
+                    # print("invalid contour", contour)
+                    # print("shape", contour.shape)
+                    # print("tag", tag)
+                    continue
+                valid_countour_count += 1
+                contour = contour.flatten().astype(np.float32)
+                contour[0::2] /= img_y  # scale y
+                contour[1::2] /= img_x  # scale x
+                contour = contour.tolist()
+                contour = ["{:.6f}".format(i) for i in contour]
+                line = str(tag - 2) + " " + " ".join(contour)
+                f.write(line + "\n")
+        if valid_countour_count == 0:
+            # print("no valid contour for tag\n\n", tag)
+            continue
 
         if marked_image_save_path:
             res = cv2.drawContours(
@@ -56,36 +86,17 @@ def extract_labels(
             cv2.imwrite(
                 os.path.join(
                     marked_image_save_path,
-                    "id"
-                    + label_save_path.split("/")[-1].split(".")[0]
-                    + "-tag"
-                    + str(tag)
-                    + ".png",
+                    str(id) + "-" + str(tag) + ".png",
                 ),
                 res,
             )
 
-        if depth_map is not None and depth_save_path:
-            depth = np.zeros_like(depth_map, dtype=np.float32)
-            depth[semantic_map == tag] = depth_map[semantic_map == tag]
-            depth = depth.flatten().astype(np.float32)
-            depth = depth[depth != 0]
-            with open(depth_save_path, "a") as ff:
-                for d in depth:
-                    ff.write(str(d) + "\n")
-
-        for contour in contours:
-            contour = contour.flatten().astype(np.float32)
-            contour[0::2] /= img_y  # scale y
-            contour[1::2] /= img_x  # scale x
-            contour = contour.tolist()
-            contour = ["{:.6f}".format(i) for i in contour]
-
-            # save labels
-            with open(label_save_path, "a") as f:
-                line = str(tag - 2) + " " + " ".join(contour)
+        if info_save_path:  # line : tag pixel_count avg_depth
+            with open(info_save_path, "a") as f:
+                pixel_count = np.sum(target)
+                avg_depth = np.mean(depth_map[target == 1]) if depth_map is not None else -1
+                line = str(tag) + " " + str(pixel_count) + " " + "{:.4f}".format(avg_depth)
                 f.write(line + "\n")
-
 
 def extract_goal_object(
     semantic_map,

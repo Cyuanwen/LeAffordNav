@@ -1,0 +1,25 @@
+### model
+model_name_or_path: ./temp/models/Qwen1.5-7B  # base model path or huggingface model name
+adapter_name_or_path: ./temp/results/sft/qwen/lora-task2_prompt0_train  # adapter path (such as the output of lora finetuning)
+
+### method
+stage: sft
+do_predict: true
+finetuning_type: lora
+
+### dataset
+dataset_dir: ./data/dataset  # dataset path
+dataset: manual_prompt0      # the name of the dataset being used, defined in dataset_dir/dataset_info.json
+template: qwen               # see https://github.com/hiyouga/LLaMA-Factory/blob/main/README_zh.md#%E6%A8%A1%E5%9E%8B
+cutoff_len: 512              # the maximum length of the input text
+max_samples: 1000000         # the maximum number of samples to be used in the dataset
+overwrite_cache: true
+preprocessing_num_workers: 16
+
+### output
+output_dir: ./temp/results/predict/qwen/lora-task2_prompt0_train-manual_prompt0-demo
+overwrite_output_dir: true
+
+### eval
+per_device_eval_batch_size: 1
+predict_with_generate: true

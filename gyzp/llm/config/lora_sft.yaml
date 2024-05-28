@@ -1,0 +1,43 @@
+### model
+model_name_or_path: ./temp/models/Qwen1.5-7B     # base model path or huggingface model name
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_target: q_proj,v_proj                       # varies from LLM to LLM, see `LLaMA-Factory/README.md##Supported Models`
+
+### ddp
+ddp_timeout: 180000000
+
+### dataset
+dataset_dir: ./data/dataset                      # dataset path
+dataset: task2_prompt0_train                     # the name of the dataset being used, defined in dataset_dir/dataset_info.json
+template: qwen                                   # varies from LLM to LLM, see `LLaMA-Factory/README.md##Supported Models`
+cutoff_len: 512
+max_samples: 1000000                             # the maximum number of samples to be used in the dataset
+overwrite_cache: true
+preprocessing_num_workers: 16
+
+### output
+output_dir: ./temp/results/sft/qwen/lora-task2_prompt0_train_demo
+logging_steps: 10
+load_best_model_at_end: true  # load the best model when training ends
+save_total_limit: 1           # only keep one checkpoint(if not the best) in the output directory
+plot_loss: true               # will be saved in output_dir/training_eval_loss.png and output_dir/training_loss.png
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 2
+learning_rate: 0.0001
+num_train_epochs: 3.0         # the number of training epochs
+lr_scheduler_type: cosine
+warmup_steps: 0.1
+fp16: true
+
+### eval
+val_size: 0.1
+per_device_eval_batch_size: 1
+evaluation_strategy: steps
+eval_steps: 100

@@ -1,22 +1,5 @@
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import habitat.sims.habitat_simulator.habitat_simulator.HabitatSimRGBSensor
 
 
 names = {

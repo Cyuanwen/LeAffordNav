@@ -470,9 +470,9 @@ class OVMMEvaluator(PPOTrainer):
         :return: dict containing metrics tracked by environment.
         """
         if evaluation_type == EvaluationType.LOCAL.value:
-            # self._env = create_ovmm_env_fn(self.config)
+            self._env = create_ovmm_env_fn(self.config)
             # # @cyw
-            self._env = create_place_env_fn(self.config)
+            # self._env = create_place_env_fn(self.config)
             return self.local_evaluate(agent, num_episodes)
         elif evaluation_type == EvaluationType.LOCAL_VECTORIZED.value:
             self._env = create_ovmm_env_fn(self.config)

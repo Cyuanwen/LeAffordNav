@@ -158,6 +158,10 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 31. habitat-lab/habitat/config/CONFIG_KEYS.md 配置文件说明要好好读一读，比如有如下关键信息： |habitat.task.actions.oracle_nav_action| Rearrangement Only, Oracle navigation action. This action takes as input a discrete ID which refers to an object in the PDDL domain. The oracle navigation controller then computes the actions to navigate to that desired object.| 
 
+32. ovmm_agent注释里面有写： # currently we get ground truth semantics of only the target object category and all scene receptacles from the simulator 只能得到目标物体类别和容器的语义
+
+33. 判断是否成功的指标在： projects/habitat_ovmm/utils/metrics_utils.py 中
+
 ## 各个split数据量大小
 val: 1199
 minival: 10

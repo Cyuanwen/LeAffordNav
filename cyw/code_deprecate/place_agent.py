@@ -6,6 +6,10 @@
 # -*- coding: utf-8 -*-
 # quick fix for import
 
+'''
+为了调试单独的放置任务的代码，稍微修改能跑通，但基本弃用
+'''
+
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
 from home_robot.core.abstract_agent import Agent
