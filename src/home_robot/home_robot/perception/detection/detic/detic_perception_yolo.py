@@ -36,6 +36,7 @@ from ultralytics import YOLO
 from PIL import Image
 import matplotlib.pyplot as plt
 visualize = False
+gather_data = False
 
 # @gyzp
 sys.path.append(r"gyzp/utils/preception")
@@ -397,14 +398,15 @@ class DeticPerception(PerceptionModule):
         masks, class_idcs, scores = self.combine_results(pred,yolo_pred,yolo_main,height, width)
 
         # @gyzp : detect error
-        g_pred_masks = yolo_pred.masks.data.cpu().numpy() if yolo_pred.masks is not None else None
-        g_pred_class_dics = yolo_pred.boxes.cls.cpu().numpy() + 2 if yolo_pred.boxes.cls is not None else None
-        self.error_detector(obs = obs, pred_masks = g_pred_masks, pred_class_dics = g_pred_class_dics, goal_id1_name = self.metadata.thing_classes[1])
+        if gather_data:
+            g_pred_masks = yolo_pred.masks.data.cpu().numpy() if yolo_pred.masks is not None else None
+            g_pred_class_dics = yolo_pred.boxes.cls.cpu().numpy() + 2 if yolo_pred.boxes.cls is not None else None
+            self.error_detector(obs = obs, pred_masks = g_pred_masks, pred_class_dics = g_pred_class_dics, goal_id1_name = self.metadata.thing_classes[1])
 
-        if depth_threshold is not None and depth is not None:
-            masks = np.array(
-                [filter_depth(mask, depth, depth_threshold) for mask in masks]
-            )
+            if depth_threshold is not None and depth is not None:
+                masks = np.array(
+                    [filter_depth(mask, depth, depth_threshold) for mask in masks]
+                )
 
         semantic_map, instance_map = overlay_masks(masks, class_idcs, (height, width))
 
