@@ -109,16 +109,22 @@ def extract_goal_object(
     pixel_count_save_path,
 ):
     exclude_tags = list(range(2, 24))
+    
+    # id == 1 --> goal
 
     target_tags = np.unique(semantic_map)
+    
+    print(target_tags)
 
     target_tags = [tag for tag in target_tags if tag not in exclude_tags]
     target_tags.sort()
 
     if not target_tags:
         return
+    
 
     img_x, img_y = semantic_map.shape
+    
 
     if not os.path.exists(os.path.dirname(label_save_path)):
         os.makedirs(os.path.dirname(label_save_path))

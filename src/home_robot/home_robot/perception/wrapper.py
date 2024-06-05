@@ -66,6 +66,30 @@ class OvmmPerception:
                 verbose=verbose,
                 **module_kwargs,
             )
+        # @cyw
+        elif self._detection_module == "yolo":
+            # from home_robot.perception.detection.yolo.yolov8_perception import (
+            #     YOLOPerception,
+            # )
+            # self._segmentation = YOLOPerception(
+            #     sem_gpu_id=gpu_device_id,
+            #     verbose=verbose,
+            #     confidence_threshold=confidence_threshold,
+            #     **module_kwargs,
+            # )
+            from home_robot.perception.detection.detic.detic_perception_yolo import (
+                DeticPerception,
+            )
+            yolo_confidence_threshold = getattr(config.AGENT.VISION, "yolo_confidence_threshold", 0.75)
+            self._segmentation = DeticPerception(
+                vocabulary="custom",
+                custom_vocabulary=".",
+                sem_gpu_id=gpu_device_id,
+                verbose=verbose,
+                confidence_threshold=confidence_threshold,
+                yolo_confidence_threshold=yolo_confidence_threshold,
+                **module_kwargs,
+            )
         else:
             raise NotImplementedError
 

@@ -4,6 +4,14 @@
 # LICENSE file in the root directory of this source tree.
 '''
 放置物体数据采集，由 projects/habitat_ovmm/receptacles_data_collection.py 复制而来
+站在容器的每个waypoint，尝试放置或抓取，记录是否成功
+对每个waypoint,记录如下信息：
+1. waypoint位置,机器人朝角
+2. 容器位置
+3. rgb, depth, semantic
+4. 操作是否成功
+5. 机器人摄像头朝角？
+info: rl place会走动，然后放上去
 '''
 import argparse
 import os
@@ -25,28 +33,6 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
-all_receptacles = [
-    "cabinet",
-    "stool",
-    "trunk",
-    "shoe_rack",
-    "chest_of_drawers",
-    "table",
-    "toilet",
-    "serving_cart",
-    "bed",
-    "washer_dryer",
-    "hamper",
-    "stand",
-    "bathtub",
-    "couch",
-    "counter",
-    "shelves",
-    "chair",
-    "bench",
-]
-# @cyw
-# {'sink', 'wardrobe', 'filing_cabinet'} 缺少 21 类中的这三类
 from habitat.core.simulator import AgentState
 import cv2
 from home_robot.core.interfaces import DiscreteNavigationAction
@@ -96,6 +82,7 @@ def get_place_success(hab_info):
         print(f"ovmm_placement_stability: {hab_info['ovmm_placement_stability']}")
         print(f"ovmm_place_object_phase_success:{hab_info['ovmm_place_object_phase_success']}")
         print(f"robot_collisions.robot_scene_colls:{hab_info['robot_collisions']['robot_scene_colls']}")
+        # 如果放置成功：ovmm_place_object_phase_success 仍然是false，但 ovmm_place_success 会是 true
 
     # 参考 projects/habitat_ovmm/utils/metrics_utils.py
     # The task is considered successful if the agent places the object without robot collisions
@@ -216,11 +203,17 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
         for recep in episode.candidate_goal_receps:
             recep_position = list(recep.position)
             # view_point_position = list(recep.view_points[0].agent_state.position)
-            # @cyw
-            view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,recep.view_points[0]).position)
-            receptacle_positions[scene_id][episode.goal_recep_category].add(
-                tuple(recep_position + view_point_position)
-            )
+            # @cyw 只搜集每个episode第一个waypoint
+            # view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,recep.view_points[0]).position)
+            # receptacle_positions[scene_id][episode.goal_recep_category].add(
+            #     tuple(recep_position + view_point_position)
+            # )
+            # 搜索所有waypoint
+            for view_point in recep.view_points:
+                view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,view_point).position)
+                receptacle_positions[scene_id][episode.goal_recep_category].add(
+                    tuple(recep_position + view_point_position)
+                )
         # @cyw
         # if count_episodes == num_episodes:
         #     break
@@ -259,7 +252,7 @@ def gen_place_data(
     while True:
         # Get a new episode
         # obs = env.reset()
-        observations, done = env.reset(), False
+        observations, done = env.reset(), False #跳转到下一个episode
         episode = env.get_current_episode()
         scene_id = extract_scene_id(episode.scene_id)
         agent.reset()
@@ -280,55 +273,74 @@ def gen_place_data(
             f"/scene_{scene_id}/ep_{episode.episode_id}"
         )
 
-        for recep in receptacle_positions[scene_id]:
-            recep_vals = list(receptacle_positions[scene_id][recep])
+        # for recep in receptacle_positions[scene_id]:
+        recep = observations.task_observations['place_recep_name']
+        recep_vals = list(receptacle_positions[scene_id][recep])
 
-            if (
-                len(recep_vals) > 4
-            ):  # Too many views around same receptacle can be unneccassary
-                np.random.shuffle(recep_vals)
-                recep_len = np.random.randint(1, 5)
-                recep_vals = recep_vals[:recep_len]
-
-            for pos_pair in recep_vals:
-                pos_pair_lst = list(pos_pair)
-                recep_position = np.array(pos_pair_lst[:3])
-                view_point_position = np.array(pos_pair_lst[3:]).astype(np.float32)
-                start_position, start_rotation, _ = get_robot_spawns(
-                    target_positions=view_point_position[None],
-                    rotation_perturbation_noise=0,
-                    distance_threshold=0,
-                    sim=sim,
-                    num_spawn_attempts=100,
-                    physics_stability_steps=100,
-                    orient_positions=recep_position[None],
-                )
-                observations = env.set_position(start_position,start_rotation)
-                observations = env.pick_up_obj() #NOTE 因为在前面就加上1，因此这里要减1
+        for pos_pair in recep_vals:
+            pos_pair_lst = list(pos_pair)
+            recep_position = np.array(pos_pair_lst[:3])
+            view_point_position = np.array(pos_pair_lst[3:]).astype(np.float32)
+            start_position, start_rotation, _ = get_robot_spawns(
+                target_positions=view_point_position[None],
+                rotation_perturbation_noise=0,
+                distance_threshold=0,
+                sim=sim,
+                num_spawn_attempts=100,
+                physics_stability_steps=100,
+                orient_positions=recep_position[None],
+            )
+            observations = env.set_position(start_position,start_rotation)
+            rot, pos = env.get_rot_pos()
+            if debug:
+                if rot != start_rotation:
+                    print(f"new rot {rot} is not equall with start_rotation {start_rotation}")
+                    # rot 和 start_rotation 会相差一些，大多数时候，要么成相反数，要么大小相差不多，似乎没有规律？
+                if pos != start_position:
+                    print(f"new pos {pos} is not equall with start_position {start_position}")
+            observations = env.pick_up_obj() #NOTE 因为在前面就加上1，因此这里要减1
+            done = False
+            if show_image:
+                cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
+                cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
+                semantic_img = get_semantic_vis(observations.semantic)
+                cv2.imshow("semantic",semantic_img)
+                cv2.waitKey() 
+            
+            # 执行放置动作
+            while not done:
+                action, info, _ = agent.act(observations)
+                observations, done, hab_info = env.apply_action(action, info)
+                # if debug:
+                #     new_rot, new_pos = env.get_rot_pos()
+                #     if new_rot != rot:
+                #         print(f"new_rot {new_rot} is not equall with rot {rot}")
+                #     if new_pos != pos:
+                #         print(f"new_pos {new_pos} is not equall with pos {pos}")
                 if show_image:
                     cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
                     cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
                     semantic_img = get_semantic_vis(observations.semantic)
                     cv2.imshow("semantic",semantic_img)
                     cv2.waitKey()
-                
-                # 执行放置动作
-                while not done:
-                    action, info, _ = agent.act(observations)
-                    observations, done, hab_info = env.apply_action(action, info)
-                    if show_image:
-                        cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
-                        cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
-                        semantic_img = get_semantic_vis(observations.semantic)
-                        cv2.imshow("semantic",semantic_img)
-                        cv2.waitKey()
-                    if debug:
-                        if done:
-                            print("debug")
-                place_success = get_place_success(hab_info)
-                if place_success:
-                    print("debug")
-                # TODO 做好结果记录
+                if debug:
+                    if done:
+                        print("debug")
+            if debug:
+                new_rot, new_pos = env.get_rot_pos()
+                if new_rot != rot:
+                    print(f"new_rot {new_rot} is not equall with rot {rot}")
+                if new_pos != pos:
+                    print(f"new_pos {new_pos} is not equall with pos {pos}")
+                # NOTE 需要在env._reset_stats之前，记录位姿信息
+                # 执行完动作，机器人的位置似乎就不对了？不是因为执行动作使得机器人位置不对，而是因为env._reset_stats()使得机器人位置不对 
+            place_success = get_place_success(hab_info)
+            if place_success:
+                print("debug")
+            # TODO 做好结果记录
+            agent.reset()
+            env._reset_stats() # 重置一些状态，但不跳转到下一个episode
+            
 
                 
             # recep_images = np.concatenate(recep_images, axis=0)  # Shape is (N, H, W, 3)
@@ -336,7 +348,9 @@ def gen_place_data(
         
         dataset_file.flush()
 
-        if count_episodes == num_episodes:
+        # if count_episodes == num_episodes:
+        #     break
+        if count_episodes == 10:
             break
     
     # NOTE 一定要放在循环外
@@ -417,8 +431,8 @@ if __name__ == "__main__":
     # Create an env
     env = create_ovmm_env_fn(env_config)
 
-    # Aggregate receptacles position by scene using all episodes
-    receptacle_position_aggregate(args.data_dir, env)
+    # # Aggregate receptacles position by scene using all episodes
+    # receptacle_position_aggregate(args.data_dir, env)
 
     # Generate images of receptacles by episode
     gen_place_data(args.data_dir, dataset_file, env, agent)

@@ -45,8 +45,8 @@ def postprocess(src_jsonl_file_path, src_json_file_path, dst_json_file_path):
     print(f'\nProcessed data saved to {dst_json_file_path}\n')
 
 if __name__ == '__main__':
-    src_jsonl_file_path = '/root/qwen/Temp/results/predict/qwen/full-task2_prompt0_train-manual/generated_predictions.jsonl'
-    src_json_file_path = '/root/qwen/Workplace/data/dataset/manual_prompt0.json'
+    src_jsonl_file_path = '/raid/home-robot/gyzp/llm/temp/results/predict/qwen/lora-task2_prompt0_train-example/generated_predictions.jsonl'
+    src_json_file_path = '/raid/home-robot/gyzp/llm/data/dataset/example.json'
 
     # src_jsonl_file_path = '/root/qwen/Temp/results/predict/qwen/full-task2_prompt0_train-task2_prompt0_test/generated_predictions.jsonl'
     # src_json_file_path = '/root/qwen/Workplace/data/dataset/all_ZH_task2_prompt0_extracted_0_50.json'

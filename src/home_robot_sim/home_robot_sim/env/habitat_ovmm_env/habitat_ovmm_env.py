@@ -101,6 +101,8 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         }
         self._instance_ids_start_in_panoptic = config.habitat.simulator.object_ids_start
         self._last_habitat_obs = None
+        # @cyw
+        self.gather_detection_error = getattr(config,"GATHER_DETECTION_ERROR",False)
 
     def get_current_episode(self):
         if isinstance(self.habitat_env, GymHabitatEnv):
@@ -192,7 +194,9 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
     def _preprocess_semantic(
         self, obs: home_robot.core.interfaces.Observations, habitat_obs
     ) -> home_robot.core.interfaces.Observations:
-        if self.ground_truth_semantics:
+        # if self.ground_truth_semantics:
+        # @cyw
+        if self.ground_truth_semantics or self.gather_detection_error:
             if "all_object_segmentation" in habitat_obs:
                 semantic = torch.from_numpy(
                     habitat_obs["all_object_segmentation"].squeeze(-1).astype(np.int64)
@@ -426,7 +430,7 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         debug = True,
     ):
         '''
-        强制拿起一个物体
+        强制拿起任务相关的物体
         TODO:之后了解仿真器用法，给定obj,拿起对应物体
         '''
         episode = self.habitat_env.env.env.habitat_env.current_episode
@@ -442,3 +446,50 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         if debug:
             print(f"episode_id {episode.episode_id}")
         return self._last_obs
+    
+    # @cyw
+    # done 的计算需要重置环境
+    def _reset_stats(self):
+        '''
+            ref: src/third_party/habitat-lab/habitat-lab/habitat/core/env.py
+            重置一些变量，但不加载下一个episode
+        '''
+        env = self.habitat_env.env.env.habitat_env
+        env._reset_stats()
+        # Delete the shortest path cache of the current episode
+        # Caching it for the next time we see this episode isn't really worth
+        # it
+        if env._current_episode is not None:
+            env._current_episode._shortest_path_cache = None
+
+        # if (
+        #     self._episode_iterator is not None
+        #     and self._episode_from_iter_on_reset
+        # ):
+        #     self._current_episode = next(self._episode_iterator)
+
+        # This is always set to true after a reset that way
+        # on the next reset an new episode is taken (if possible)
+        env._episode_from_iter_on_reset = True
+        env._episode_force_changed = False
+
+        env.reconfigure(env._config)
+
+        observations = env.task.reset(episode=env.current_episode)
+        env._task.measurements.reset_measures(
+            episode=env.current_episode,
+            task=env.task,
+            observations=observations,
+        )
+
+        return observations
+
+    def get_rot_pos(self):
+        '''
+            获取当前agent的posation 和 rotation
+            参考：src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/utils.py
+        '''
+        agent = self.habitat_env.env.habitat_env._sim.articulated_agent
+        rotation = agent.base_rot
+        position = agent.base_pos
+        return rotation, position

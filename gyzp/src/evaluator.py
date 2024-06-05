@@ -258,7 +258,8 @@ class OVMMEvaluator(PPOTrainer):
 
         count_episodes: int = 0
 
-        episode_dict = {}  # scene_id -> [episode_id, ...]
+        # @gyzp scene_id -> [episode_id, ...]
+        episode_dict = {}  
 
         pbar = tqdm(total=num_episodes)
         while (
@@ -277,14 +278,14 @@ class OVMMEvaluator(PPOTrainer):
             episode_id = str(current_episode.episode_id)
             scene_id = current_episode.scene_id.split("/")[-1].split(".")[0]
 
+            # @gyzp
             if scene_id in episode_dict:
                 print(f"\nlen(episode_dict[scene_id]) = {len(episode_dict[scene_id])}\n")
-                if len(episode_dict[scene_id]) > 10:
-                    continue
+                # if len(episode_dict[scene_id]) > 10:
+                #     continue
                 episode_dict[scene_id].append(episode_id)
             else:
                 episode_dict[scene_id] = [episode_id]
-
             print("\n\n\ncurrent_episode_key: ", current_episode_key, "\n\n\n")
 
             current_episode_metrics = {}
@@ -293,8 +294,6 @@ class OVMMEvaluator(PPOTrainer):
                 action, info, _ = agent.act(
                     observations, {"current_episode": current_episode}
                 )
-                # if "goal_name" in info:
-                #     print("goal : ", info["goal_name"])
                 observations, done, hab_info = self._env.apply_action(action, info)
                 if self.data_dir:
                     obs_data.append(observations)

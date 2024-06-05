@@ -66,9 +66,16 @@ def create_env_config(
             env_config.habitat.simulator.agents.main_agent.sim_sensors.pop(
                 "third_rgb_sensor"
             )
+    # if (
+    #     getattr(env_config.ENVIRONMENT, "evaluate_instance_tracking", False)
+    #     or env_config.GROUND_TRUTH_SEMANTICS
+    # ) and "head_panoptic" not in env_config.habitat.gym.obs_keys:
+    #     env_config.habitat.gym.obs_keys.append("head_panoptic")
+    # @cyw
     if (
         getattr(env_config.ENVIRONMENT, "evaluate_instance_tracking", False)
-        or env_config.GROUND_TRUTH_SEMANTICS
+        or env_config.GROUND_TRUTH_SEMANTICS 
+        or getattr(env_config, "GATHER_DETECTION_ERROR", False)
     ) and "head_panoptic" not in env_config.habitat.gym.obs_keys:
         env_config.habitat.gym.obs_keys.append("head_panoptic")
 

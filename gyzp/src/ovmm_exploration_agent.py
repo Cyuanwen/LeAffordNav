@@ -46,6 +46,7 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         print("Exploration Agent created")
         self.args = args
 
+        # @gyzp
         labels_file_path = (
             "/raid/home-robot/projects/real_world_ovmm/configs/example_cat_map.json"
         )
@@ -85,7 +86,6 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
     def act(
         self, obs: Observations, dict_info: Dict[str, Any] = None
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
-        # /raid/home-robot/src/third_party/habitat-lab/habitat-lab/habitat/config/benchmark/ovmm/ovmm.yaml
 
         """State machine"""
 
@@ -100,7 +100,6 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
 
         self.timesteps[0] += 1
 
-        # is_finished = False
         action = None
 
         while action is None:
@@ -126,21 +125,21 @@ class OVMMExplorationAgent(OpenVocabManipAgent):
         scene_id = dict_info["current_episode"].scene_id.split("/")[-1].split(".")[0]
         root_path = "/raid/home-robot/gyzp/data/data2/receptacle/train"
 
-        extract_labels(
-            semantic_map=obs.semantic,
-            image=obs.rgb,
-            label_save_path=os.path.join(
-                root_path, "labels", scene_id, str(labels_counter) + ".txt"
-            ),
-            image_save_path=os.path.join(
-                root_path, "images", scene_id, str(labels_counter) + ".png"
-            ),
-            # marked_image_save_path = os.path.join(root_path, "marked", scene_id),
-            depth_map=obs.depth,
-            info_save_path=os.path.join(
-                root_path, "depth", scene_id, str(labels_counter) + ".txt"
-            ),
-        )
+        # extract_labels(
+        #     semantic_map=obs.semantic,
+        #     image=obs.rgb,
+        #     label_save_path=os.path.join(
+        #         root_path, "labels", scene_id, str(labels_counter) + ".txt"
+        #     ),
+        #     image_save_path=os.path.join(
+        #         root_path, "images", scene_id, str(labels_counter) + ".png"
+        #     ),
+        #     # marked_image_save_path = os.path.join(root_path, "marked", scene_id),
+        #     depth_map=obs.depth,
+        #     info_save_path=os.path.join(
+        #         root_path, "depth", scene_id, str(labels_counter) + ".txt"
+        #     ),
+        # )
 
         # extract_goal_object(
         #     obs.semantic,

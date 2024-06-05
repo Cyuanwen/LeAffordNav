@@ -162,6 +162,10 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 33. 判断是否成功的指标在： projects/habitat_ovmm/utils/metrics_utils.py 中
 
+34. gt semantic中 0对应背景，1对应小物体，2：对应 大物体
+
+35. docs/challenge.md 有提交的详细说明
+
 ## 各个split数据量大小
 val: 1199
 minival: 10
@@ -178,7 +182,8 @@ train:
 2. full semantic，能够建立所有recep的语义地图，并且已从llama3-8b中抽取物体共现关系
 3. PSL alone, 单独增加 cyw/test/psl_agent.py 文件，并调试通
 4. grounding sam 配置环境，加上grounding sam ,代码没怎么修改
-5. place_before 修改 make_env函数之前
+5. place_before 修改 make_env 函数之前
+6. place_data_collect 放置物体数据收集之前
 
 ## 潜在bug
 1. 导航的mask好像是各个方向都可以走，这样会导致碰撞
@@ -211,6 +216,9 @@ start = [
 又转换为了 local_pose, 所以是对的, 需要注意：语义图给出的local_pose 和 global_pose都是以m为单位，且 y 为第一轴的坐标值，x 为第二轴的坐标值
 
 ## TODO tomorro
+采集容器图像，分训练集和验证集
+
+## done
 1. 跑一下连续环境设置是什么结果？
 2. 先用gt对比一下效果，目前来看，导航算法的停止点选择很不合理
 
@@ -227,6 +235,12 @@ start = [
 5. 分割模型怎么着都要微调
 
 6. 路径规划算法：[104] J. J. Kuffner and S. M. LaValle. Rrt-connect: An efficient approach to single-query path planning. In ICRA, 2000.
+
+### 针对idea 1的进一步思考
+1. 直接想让模型远远地看到物体，就知道哪些地方好交互，哪些地方不好交互可能太难了？或许让机器人走到东西附近，绕一圈，多输入一些信息，再预测哪些地方好交互，会比较简单
+2. 即使要让机器人在很远的地方就预测可交互区域，也应该是一些序列迭代问题，第一步的预测接入到第二步中，再进行预测
+3. 为什么不用VLM，在某些关键的时候调用（如看到可交互物体），区分出哪些点好交互，哪些点不好交互？
+4. 或许预测的不应该是一个可交互点，而是各个点的affordance，或许应该按照规则性的方式，给定可交互区域，让模型打分，affordance,然后affordance分数随着运动过程不断迭代。（这样效果应该会更好一些，但是训练数据应该怎么来？）
 
 ## 环境配置版本说明
 cyw/ovmm_env_20240513.yml 为配置yolo-world模型前的环境配置

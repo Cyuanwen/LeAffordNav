@@ -47,9 +47,8 @@ all_receptacles = [
 from habitat.core.simulator import AgentState
 import cv2
 from place_data_collection import get_semantic_vis
-from cyw.yolo_train.extra_label import extract_labels
-# show_image = True
-show_image = False
+show_image = True
+
 
 # @cyw
 def get_agent_state_position(viewpoints_matrix,view_idx) -> AgentState:
@@ -131,28 +130,22 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
             view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,recep.view_points[0]).position)
             receptacle_positions[scene_id][episode.goal_recep_category].add(
                 tuple(recep_position + view_point_position)
-            ) #NOTE 严格来说，这里面的东西应该确保不重复，否则，会收集到很多重复图像，也应该尽量不遗漏，否则，可能会漏掉一些数据
+            )
         # @cyw
-        if count_episodes == num_episodes:
-            break
-        # if count_episodes == 10:
+        # if count_episodes == num_episodes:
         #     break
+        if count_episodes == 10:
+            break
 
     os.makedirs(f"./{data_dir}", exist_ok=True)
     with open(f"./{data_dir}/recep_position.pickle", "wb") as handle:
         pickle.dump(receptacle_positions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-# def gen_receptacle_images(
-#     data_dir: str, dataset_file: h5py.File, env: HabitatOpenVocabManipEnv
-# ):
 def gen_receptacle_images(
-    data_dir: str, env: HabitatOpenVocabManipEnv
+    data_dir: str, dataset_file: h5py.File, env: HabitatOpenVocabManipEnv
 ):
     """Generates images of receptacles by episode for all scenes"""
-    '''
-        将原本代码修改为以rgb 和 label格式存储
-    '''
 
     # sim = env.habitat_env.env._env._env._sim
     sim = env.habitat_env.env.habitat_env._sim
@@ -163,29 +156,20 @@ def gen_receptacle_images(
     # Also, creating folders for storing dataset
     for episode in env._dataset.episodes:
         scene_id = extract_scene_id(episode.scene_id)
-        # if f"scene_{scene_id}" not in dataset_file:
-        #     dataset_file.create_group(f"scene_{scene_id}")
-        if not os.path.exists(os.path.join(data_dir,scene_id)):
-            os.makedirs(os.path.join(data_dir,scene_id),exist_ok=True)
-            os.mkdir(os.path.join(data_dir,scene_id,"images"))
-            os.mkdir(os.path.join(data_dir,scene_id,"labels"))
+        if f"scene_{scene_id}" not in dataset_file:
+            dataset_file.create_group(f"scene_{scene_id}")
 
     with open(f"./{data_dir}/recep_position.pickle", "rb") as handle:
         receptacle_positions = pickle.load(handle)
-    # with open("cyw/datasets/datasets_v1/recep_data/val/recep_position.pickle", "rb") as handle:
-    #     receptacle_positions = pickle.load(handle)
 
     count_episodes = 0
-    count_image = 0
 
     # Ideally, we can make it like an iterator to make it feel more intuitive
     while True:
         # Get a new episode
-        observations = env.reset()
+        obs = env.reset()
         episode = env.get_current_episode()
         scene_id = extract_scene_id(episode.scene_id)
-        # if scene_id != "104348361_171513414":
-        #     continue
 
         # Check if you have iterated through all episodes and if yes, break the loop
         hash_str = f"ep_{episode.episode_id}_scene_{scene_id}"
@@ -197,9 +181,9 @@ def gen_receptacle_images(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
 
-        # scene_ep_grp = dataset_file.create_group(
-        #     f"/scene_{scene_id}/ep_{episode.episode_id}"
-        # )
+        scene_ep_grp = dataset_file.create_group(
+            f"/scene_{scene_id}/ep_{episode.episode_id}"
+        )
 
         for recep in receptacle_positions[scene_id]:
             recep_vals = list(receptacle_positions[scene_id][recep])
@@ -211,7 +195,7 @@ def gen_receptacle_images(
                 recep_len = np.random.randint(1, 5)
                 recep_vals = recep_vals[:recep_len]
 
-            # recep_images = []
+            recep_images = []
             for pos_pair in recep_vals:
                 pos_pair_lst = list(pos_pair)
                 recep_position = np.array(pos_pair_lst[:3])
@@ -244,25 +228,18 @@ def gen_receptacle_images(
                 observations = env.set_position(start_position,start_rotation)
                 if show_image:
                     cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
-                    # cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB)) # 需要env 配置中指定 visualize才会有 third_rgb
+                    cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
                     semantic_img = get_semantic_vis(observations.semantic)
                     cv2.imshow("semantic",semantic_img)
                     cv2.waitKey()
-                # 保存图像和semantic
-                cv2.imwrite(os.path.join(data_dir,scene_id,"images",f"{count_image}.png"),cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
-                # np.save(os.path.join(data_dir,scene_id,"semantic",f"{count_image}.npy"),observations.semantic)
-                extract_labels(observations.semantic,os.path.join(data_dir,scene_id,"labels",f"{count_image}.txt"))
-                count_image += 1
 
-            # recep_images = np.concatenate(recep_images, axis=0)  # Shape is (N, H, W, 3)
-            # scene_ep_grp.create_dataset(recep, data=recep_images)
+            recep_images = np.concatenate(recep_images, axis=0)  # Shape is (N, H, W, 3)
+            scene_ep_grp.create_dataset(recep, data=recep_images)
 
-        # dataset_file.flush()
+        dataset_file.flush()
 
         if count_episodes == num_episodes:
             break
-        # if count_episodes == 10:
-        #     break
 
 
 def gen_dataset_question(
@@ -284,6 +261,7 @@ def gen_dataset_question(
         env.reset()
         episode = env.get_current_episode()
         scene_id = extract_scene_id(episode.scene_id)
+
         # Check if you have iterated through all episodes and if yes, break the loop
         hash_str = f"ep_{episode.episode_id}_scene_{scene_id}"
         if count_dict[hash_str] == 0:
@@ -386,22 +364,21 @@ if __name__ == "__main__":
 
     # Create h5py files
     os.makedirs(f"./{args.data_dir}", exist_ok=True)
-    # dataset_file = h5py.File(f"./{args.data_dir}/{args.datafile}.hdf5", "w")
+    dataset_file = h5py.File(f"./{args.data_dir}/{args.datafile}.hdf5", "w")
 
     # Create an env
     env = create_ovmm_env_fn(env_config)
 
-    # # @cyw
+    # @cyw
     # # Aggregate receptacles position by scene using all episodes
     # receptacle_position_aggregate(args.data_dir, env)
 
     # Generate images of receptacles by episode
-    # gen_receptacle_images(args.data_dir, dataset_file, env)
-    gen_receptacle_images(args.data_dir, env)
+    gen_receptacle_images(args.data_dir, dataset_file, env)
 
     # @cyw
     # # Generate templated Q/A per episode
     # gen_dataset_question(args.data_dir, dataset_file, env)
 
-    # # Close the h5py file
-    # dataset_file.close()
+    # Close the h5py file
+    dataset_file.close()
