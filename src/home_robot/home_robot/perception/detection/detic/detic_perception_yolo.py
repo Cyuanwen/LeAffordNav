@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 visualize = False
 
 # @gyzp
-sys.path.append(r"/raid/home-robot/gyzp/utils/preception")
+sys.path.append(r"gyzp/utils/preception")
 from detect_error import DetectionErrorWrapper
 
 sys.path.insert(
@@ -74,7 +74,7 @@ BUILDIN_METADATA_PATH = {
     "coco": "coco_2017_val",
 }
 
-YOLO_CHECKPOINT_FILE = "/raid/cyw/detection/ovmm_data/runs/segment/train/weights/best.pt"
+YOLO_CHECKPOINT_FILE = "data/models/perception/train/weights/best.pt"
 
 def get_clip_embeddings(vocabulary, prompt="a "):
     text_encoder = build_text_encoder(pretrain=True)
