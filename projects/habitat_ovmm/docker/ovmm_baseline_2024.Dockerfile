@@ -1,18 +1,18 @@
-FROM fairembodied/habitat-challenge:homerobot-ovmm-challenge-2023-ubuntu20.04
+FROM ovmm_baseline_submission_v4:homerobot-ovmm-challenge-2023-ubuntu20.04
 # docker pull fairembodied/habitat-challenge:homerobot-ovmm-challenge-2023-ubuntu20.04
 # FROM ovmm_baseline_submission:homerobot-ovmm-challenge-2024-ubuntu22.04-v2
 # docker pull fairembodied/habitat-challenge:homerobot-ovmm-challenge-2024-ubuntu22.04-v2
 
 # # install baseline agent requirements
 # RUN /bin/bash -c "\
-#     . activate home-robot \
-#     && cd home-robot \
-#     && git submodule update --init --recursive src/third_party/detectron2 \
-#         src/home_robot/home_robot/perception/detection/detic/Detic \
-#         src/third_party/contact_graspnet \
-#     && pip install -e src/third_party/detectron2 \
-#     && pip install -r src/home_robot/home_robot/perception/detection/detic/Detic/requirements.txt \
-#     && pip install -e src/home_robot \
+    # . activate home-robot \
+    # && cd home-robot \
+    # && git submodule update --init --recursive src/third_party/detectron2 \
+    #     src/home_robot/home_robot/perception/detection/detic/Detic \
+    #     src/third_party/contact_graspnet \
+    # && pip install -e src/third_party/detectron2 \
+    # && pip install -r src/home_robot/home_robot/perception/detection/detic/Detic/requirements.txt \
+    # && pip install -e src/home_robot \
 #     "
 
 # # download pretrained Detic checkpoint
@@ -47,7 +47,7 @@ ENV LOCAL_ARGS ""
 # run submission script
 CMD /bin/bash -c "\
     . activate home-robot \
-    && cd /home-robot \
+    && cd /home-robot-v1/home-robot \
     && export PYTHONPATH=/evalai_remote_evaluation:$PYTHONPATH \
     && bash submission.sh $LOCAL_ARGS \
     "

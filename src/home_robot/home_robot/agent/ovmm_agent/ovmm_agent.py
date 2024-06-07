@@ -134,6 +134,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 device_id=device_id,
             )
         self._fall_wait_steps = getattr(config.AGENT, "fall_wait_steps", 0)
+        self.log_detect =  getattr(
+                config.AGENT.VISION,"log_detect",False
+            )
         self.config = config
 
     def _get_info(self, obs: Observations) -> Dict[str, torch.Tensor]:
@@ -175,7 +178,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
     def reset(self):
         """Initialize agent state."""
-        self.reset_vectorized()
+        self.reset_vectorized()            
 
     def reset_vectorized(self):
         """Initialize agent state."""
@@ -228,7 +231,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.nav_to_rec_agent is not None:
             self.nav_to_rec_agent.reset_vectorized_for_env(e)
 
-    def _init_episode(self, obs: Observations):
+    def _init_episode(self, obs: Observations,
+        current_episode_key:Optional[str] = None,
+    ):
         """
         This method is called at the first timestep of every episode before any action is taken.
         """
@@ -246,6 +251,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
             else:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=True)
+        # @cyw
+        if self.log_detect:
+            self.semantic_sensor.set_episode_key(current_episode_key=current_episode_key)
         # @cyw
         if self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc":
             if self.config.GROUND_TRUTH_SEMANTICS == 0:
@@ -577,11 +585,12 @@ class OpenVocabManipAgent(ObjectNavAgent):
         return action, info, None
 
     def act(
-        self, obs: Observations
+        self, obs: Observations,
+        current_episode_key: Optional[str] = None,
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
         """State machine"""
         if self.timesteps[0] == 0:
-            self._init_episode(obs)
+            self._init_episode(obs,current_episode_key)
             
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
             obs = self.semantic_sensor(obs)

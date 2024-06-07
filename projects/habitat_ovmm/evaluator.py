@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from home_robot.core.abstract_agent import Agent
 
 # @cyw
-from utils.env_utils import create_place_env_fn
+# from utils.env_utils import create_place_env_fn
 
 class EvaluationType(Enum):
     """Whether we run local or remote evaluation."""
@@ -274,7 +274,7 @@ class OVMMEvaluator(PPOTrainer):
             current_episode_metrics = {}
             obs_data = [observations]
             while not done:
-                action, info, _ = agent.act(observations)
+                action, info, _ = agent.act(observations,current_episode_key)
                 observations, done, hab_info = self._env.apply_action(action, info)
                 if self.data_dir:
                     obs_data.append(observations)

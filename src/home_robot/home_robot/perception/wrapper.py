@@ -15,6 +15,7 @@ from home_robot.perception.constants import RearrangeDETICCategories
 from home_robot.utils.config import load_config
 
 # @cyw
+import os
 ROOMS = ['bedroom', 'living room', 'bathroom', 'kitchen', 'dining room', 'office room', 'gym', 'lounge', 'laundry room']
 ROOMS_id_to_name = {id: room for id, room in enumerate(ROOMS)}
 
@@ -81,6 +82,16 @@ class OvmmPerception:
                 DeticPerception,
             )
             yolo_confidence_threshold = getattr(config.AGENT.VISION, "yolo_confidence_threshold", 0.75)
+            yolo_main = getattr(
+                config.AGENT.VISION,"yolo_main",False
+            )
+            log_detect = getattr(
+                config.AGENT.VISION,"log_detect",False
+            )
+            log_dir = os.path.join(
+            config.DUMP_LOCATION, "detect_error", config.EXP_NAME
+            )
+            os.makedirs(log_dir, exist_ok=True)
             self._segmentation = DeticPerception(
                 vocabulary="custom",
                 custom_vocabulary=".",
@@ -88,6 +99,9 @@ class OvmmPerception:
                 verbose=verbose,
                 confidence_threshold=confidence_threshold,
                 yolo_confidence_threshold=yolo_confidence_threshold,
+                yolo_main=yolo_main,
+                log_detect=log_detect,
+                log_dir = log_dir,
                 **module_kwargs,
             )
         else:
@@ -128,6 +142,9 @@ class OvmmPerception:
 
         self._current_vocabulary = vocabulary
         self._current_vocabulary_id = vocabulary_id
+    # @cyw
+    def set_episode_key(self,current_episode_key):
+        self._segmentation.set_episode_key(current_episode_key)
 
     def get_class_name_for_id(self, oid: int) -> str:
         """return name of a class from a detection"""

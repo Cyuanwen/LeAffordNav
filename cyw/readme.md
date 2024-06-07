@@ -166,6 +166,8 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 35. docs/challenge.md 有提交的详细说明
 
+36. vocabu除了让模型检测外，还有什么用？ 在src/home_robot/home_robot/perception/wrapper.py中，将 goal start_recp和end_recp 根据名称计算id。后续导航模型会根据记录的物体类别数再进行调整
+
 ## 各个split数据量大小
 val: 1199
 minival: 10

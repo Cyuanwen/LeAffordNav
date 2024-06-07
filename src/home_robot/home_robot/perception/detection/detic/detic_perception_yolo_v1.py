@@ -11,7 +11,6 @@
 
     由于vocab变量外部代码也会使用，这里将yolo的结果映射到 detic vocab
     TODO: 让detic识别task related objects, rooms (rooms单独识别), yolo识别recep
-    相比于 src/home_robot/home_robot/perception/detection/detic/detic_perception_yolo_v1.py： 使用detic单独识别recep, room, 并用yolo识别所有不相关的物体
 '''
 
 import argparse
@@ -296,7 +295,8 @@ class DeticPerception(PerceptionModule):
                 scores = yolo_scores[yolo_index]
                 return masks,class_idcs,scores
         return None,None,None
-                      
+        
+                    
     # @cyw
     def combine_results(self,pred,yolo_pred,yolo_main,height, width):
         '''将detic的预测结果和yolo的预测结果结合起来

@@ -47,7 +47,7 @@ all_receptacles = [
 from habitat.core.simulator import AgentState
 import cv2
 from place_data_collection import get_semantic_vis
-from cyw.yolo_train.extra_label import extract_labels
+from cyw.detection_utils.yolo_train.extra_label import extract_labels
 # show_image = True
 show_image = False
 

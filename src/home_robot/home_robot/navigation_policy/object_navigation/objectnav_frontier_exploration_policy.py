@@ -20,7 +20,8 @@ from home_robot.utils.morphology import binary_dilation, binary_erosion
 import cv2
 from home_robot.navigation_planner.fmm_planner import FMMPlanner
 import sys
-sys.path.append("/raid/home-robot")
+import os
+sys.path.append(os.getcwd())
 from cyw.test.psl_agent import psl_agent
 from cyw.test.psl_agent import recep_category_21, rooms
 

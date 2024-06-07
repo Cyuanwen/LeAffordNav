@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DOCKER_NAME="ovmm_baseline_submission_v4"
+DOCKER_NAME="ovmm_baseline_submission_v4_cmd"
 SPLIT="minival"
 
 while [[ $# -gt 0 ]]
@@ -31,10 +31,4 @@ docker run \
       --gpus all \
       -e "AGENT_EVALUATION_TYPE=local" \
       -e "LOCAL_ARGS='habitat.dataset.split=${SPLIT}'" \
-      ${DOCKER_NAME} \
-      /bin/bash -c "\
-      . activate home-robot \
-      && cd /home-robot-v1/home-robot \
-      && export PYTHONPATH=/evalai_remote_evaluation:$PYTHONPATH \
-      && bash submission.sh $LOCAL_ARGS \
-      "
+      ${DOCKER_NAME} 
