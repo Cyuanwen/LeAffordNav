@@ -168,6 +168,11 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 36. vocabu除了让模型检测外，还有什么用？ 在src/home_robot/home_robot/perception/wrapper.py中，将 goal start_recp和end_recp 根据名称计算id。后续导航模型会根据记录的物体类别数再进行调整
 
+37. 在技能之间转换时，也会 reset vocab
+
+38. 旋转角度 30 度, 前进一步是0.25
+
+
 ## 各个split数据量大小
 val: 1199
 minival: 10

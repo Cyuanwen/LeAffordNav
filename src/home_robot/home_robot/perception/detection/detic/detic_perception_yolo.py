@@ -36,9 +36,10 @@ from home_robot.perception.detection.utils import filter_depth, overlay_masks
 from ultralytics import YOLO
 from PIL import Image
 import matplotlib.pyplot as plt
+from home_robot.perception.wrapper import ROOMS
 visualize = False
-gather_data = True
-
+debug = False
+YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe"] #训练场景没有这三类数据，yolo识别不了
 # @gyzp
 # sys.path.append(r"gyzp/utils/preception")
 # from detect_error import DetectionErrorWrapper
@@ -79,7 +80,7 @@ BUILDIN_METADATA_PATH = {
     "coco": "coco_2017_val",
 }
 
-YOLO_CHECKPOINT_FILE = "data/models/perception/train/weights/best.pt"
+YOLO_CHECKPOINT_FILE = "data/models/perception/train2/weights/best.pt"
 RECORD_PATH_FILE = '/raid/home-robot/gyzp/output/detect_error/yolo_only'
 
 def get_clip_embeddings(vocabulary, prompt="a "):
@@ -104,7 +105,8 @@ class DeticPerception(PerceptionModule):
         yolo_confidence_threshold: Optional[float] = None,
         yolo_main: bool = False,
         log_detect: bool = False,
-        log_dir: Optional[str]=None
+        log_dir: Optional[str]=None,
+        add_rooms:bool=False,
     ):
         """Load trained Detic model for inference.
 
@@ -119,6 +121,7 @@ class DeticPerception(PerceptionModule):
             verbose: whether to print out debug information
             yolo_main: use yolo as main detector
             log: log detect info, will collect error detect data
+            add_rooms: whether to detect rooms
         """
         self.verbose = verbose
         if config_file is None:
@@ -193,10 +196,26 @@ class DeticPerception(PerceptionModule):
         self.cpu_device = torch.device("cpu")
         self.instance_mode = ColorMode.IMAGE
         self.predictor = DefaultPredictor(cfg)
-
+    
         if type(classifier) == pathlib.PosixPath:
             classifier = str(classifier)
         reset_cls_test(self.predictor.model, classifier, num_classes)
+
+        # 设置单独识别房间的模型
+        # @cyw
+        self.add_rooms = add_rooms
+        if self.add_rooms:
+            self.room_predictor = DefaultPredictor(cfg)
+        
+        if args.vocabulary == "custom":
+            self.room_classes = ["."] + ROOMS + ["other"]
+            room_classifier = get_clip_embeddings(self.room_classes)
+        else:
+            raise NotImplementedError(
+                "Detic does not have support rooms coco vocab"
+            )
+        num_room_classes = len(self.room_classes)
+        reset_cls_test(self.room_predictor.model, room_classifier, num_room_classes)
 
         # 加载yolo 模型
         if yolo_checkpoint_file is None:
@@ -231,8 +250,8 @@ class DeticPerception(PerceptionModule):
                             19: "wardrobe",
                             20: "washer_dryer",
         }
-        self.yolo_name2idx = {name:idx for idx,name in self.yolo_names.items()}
-        
+        yolo_name2id = {name:idx for idx,name in self.yolo_names.items()}
+        self.yolo_extra_id = [yolo_name2id[name] for name in YOLO_EXTRA ]
         self.yolo_mian = yolo_main
         self.log_detect = log_detect
         # @gyzp error dectection
@@ -241,11 +260,15 @@ class DeticPerception(PerceptionModule):
             print(f"the error detect result will be saved in {log_dir}")
         
 
-    def reset_vocab(self, new_vocab: List[str], vocab_type="custom"):
+    def reset_vocab(self, new_vocab: List[str], 
+        simple_vocab:Optional[List[str]] = None,
+        vocab_type="custom"
+        ):
         """Resets the vocabulary of Detic model allowing you to change detection on
         the fly. Note that previous vocabulary is not preserved.
         Args:
             new_vocab: list of strings representing the new vocabulary
+            simple_vocab: simple task related vocab
             vocab_type: one of "custom" or "coco"; only "custom" supported right now
         """
         if self.verbose:
@@ -254,7 +277,8 @@ class DeticPerception(PerceptionModule):
         if vocab_type == "custom":
             self.metadata = MetadataCatalog.get("__unused")
             self.metadata.thing_classes = new_vocab
-            classifier = get_clip_embeddings(self.metadata.thing_classes)
+            # classifier = get_clip_embeddings(self.metadata.thing_classes)
+            self.name2id = {name:idx for idx,name in enumerate(self.metadata.thing_classes)}
             self.categories_mapping = {
                 i: i for i in range(len(self.metadata.thing_classes))
             }
@@ -263,9 +287,26 @@ class DeticPerception(PerceptionModule):
                 "Detic does not have support for resetting from custom to coco vocab"
             )
         self.num_sem_categories = len(self.categories_mapping)
-        self.yoloid2deticid = {self.yolo_name2idx[name]:detic_id for detic_id,name in enumerate(self.metadata.thing_classes) if name in self.yolo_name2idx} #detic物体对应的yolo id
 
-        num_classes = len(self.metadata.thing_classes)
+        self.yolo_mapping = {
+            i:self.name2id[name] for i, name in self.yolo_names.items() \
+                if name in self.name2id.keys()
+        }
+
+        self.room_mapping = {
+                i: self.name2id[self.room_classes[i]] for i in range(len(self.room_classes))
+            }
+        # @cyw
+        if simple_vocab is None:
+            classifier = get_clip_embeddings(self.metadata.thing_classes)
+            num_classes = len(self.metadata.thing_classes)
+            self.detic_mapping = None #不需要映射
+        else:
+            classifier = get_clip_embeddings(simple_vocab)
+            num_classes = len(simple_vocab)
+            self.detic_mapping = {
+                i:self.name2id[simple_vocab[i]] for i in range(len(simple_vocab))
+            }
         reset_cls_test(self.predictor.model, classifier, num_classes)
     
     # @cyw
@@ -278,8 +319,8 @@ class DeticPerception(PerceptionModule):
     
     def get_yolo_results(self,yolo_pred):
         '''
-            将yolo_pred按照 vocab 重新组合
-            NOTE 这里只返回yolo识别到的 vocab指定的物体类别
+            将yolo_pred进行过滤，并重新映射：过滤出metadata.thing_class里面的类别，并将class_idcs映射到总体vocab
+            NOTE 这里只返回yolo识别到的 vocab 指定的物体类别
         '''
         if yolo_pred.masks is not None:
             yolo_masks = yolo_pred.masks.data.cpu().numpy()
@@ -288,63 +329,85 @@ class DeticPerception(PerceptionModule):
             yolo_index = []
             class_idcs = []
             for idx, yolo_class_id in enumerate(yolo_class_idcs):
-                if yolo_class_id in self.yoloid2deticid:
+                if yolo_class_id in self.yolo_mapping:
                     yolo_index.append(idx)
-                    class_idcs.append(self.yoloid2deticid[yolo_class_id])
+                    class_idcs.append(self.yolo_mapping[yolo_class_id])
             if len(yolo_index)!=0:
                 masks = yolo_masks[yolo_index,:,:]
                 scores = yolo_scores[yolo_index]
                 return masks,class_idcs,scores
         return None,None,None
-                      
+    
+    def mapping_class_idcs(self,class_idcs,mapping):
+        '''将 class_idcs 根据 mapping 中的对应关系进行映射
+        '''
+        if mapping is None:
+            # 不需要映射
+            return class_idcs
+        new_class_ids = []
+        for idx in class_idcs:
+            new_class_ids.append(mapping[int(idx)])
+        return new_class_ids
+
+    def filter_class_ids(self,masks,class_idcs,scores,keep_ids):
+        '''过滤一些类别id
+            Arguments:
+                masks:
+                class_ids:原本类别ids
+                scores:
+                keep_ids:要保留的ids
+            Return:
+                masks,class_ids,scores
+        '''
+        index = []
+        new_class_ids = []
+        for idx, class_id in enumerate(class_idcs):
+            if class_id in keep_ids:
+                index.append(idx)
+                new_class_ids.append(class_id)
+        masks_new = masks[index,:,:]
+        scores_new = scores[index]
+        return masks_new,new_class_ids,scores_new
+
     # @cyw
     def combine_results(self,pred,yolo_pred,yolo_main,height, width):
         '''将detic的预测结果和yolo的预测结果结合起来
             Arguments:
-                pred: detic 预测结果
-                yolo_pred: yolo 预测结果
+                pred: detic 预测结果，需将id映射到全局vocab
+                yolo_pred: yolo 预测结果，已将id映射到全局vocab
                 yolo_main: True: yolo的结果为主导，detic补充；False: detic 结果为主导，yolo补充
+                room_pred:预测的房间结果
         '''
         # Sort instances by mask size
         masks = pred["instances"].pred_masks.cpu().numpy()# n,w,h
         class_idcs = pred["instances"].pred_classes.cpu().numpy() # n
         scores = pred["instances"].scores.cpu().numpy() # n
 
+        # 将结果合并起来
+        if yolo_main:
+            yolo_extra_ids = [self.yolo_mapping[idx] for idx in self.yolo_extra_id if idx in self.yolo_mapping]
+            yolo_keep_ids = [idx for idx in self.yolo_mapping.values() if idx not in yolo_extra_ids]
+            if self.detic_mapping is not None:
+                detic_keep_ids = [idx for idx in self.detic_mapping.values() if idx not in yolo_keep_ids]
+            else:
+                detic_keep_ids = [idx for idx in self.categories_mapping.values() if idx not in yolo_keep_ids]
+        else:
+            if self.detic_mapping is not None:
+                detic_keep_ids = [idx for idx in self.detic_mapping.values()]
+                yolo_keep_ids = [idx for idx in self.yolo_mapping.values() if idx not in detic_keep_ids]
+            else:
+                detic_keep_ids = self.categories_mapping.values()
+                yolo_keep_ids = []
         # yolo 结果
         yolo_masks,yolo_class_idcs,yolo_scores = self.get_yolo_results(yolo_pred)
-        new_masks = np.empty((0,height, width))
-        new_class_idcs = np.empty((0,))
-        new_scores = np.empty((0,))
-        if yolo_main: #只用detic识别小物体
-            if yolo_masks is not None:
-                new_masks = yolo_masks
-                new_class_idcs = yolo_class_idcs
-                new_scores = yolo_scores
-            else:
-                new_masks = np.empty((0,height, width))
-                new_class_idcs = np.empty((0,))
-                new_scores = np.empty((0,))
-            # 用detic补充yolo结果
-            for idx, class_id in enumerate(class_idcs):
-                if class_id not in self.yoloid2deticid.values():
-                    new_masks = np.concatenate((new_masks,masks[idx:idx+1,:,:]),axis=0)
-                    new_class_idcs = np.append(new_class_idcs,[class_id],axis=0)
-                    new_scores = np.append(new_scores,[scores[idx]],axis=0)
-        else: #用detic识别小物体，start recep, goal recep, 其它用yolo
-            new_masks = masks
-            new_class_idcs = class_idcs
-            new_scores = scores
-            # 用yolo结果补充detic:这样会导致同一个位置，yolo和detic的识别不一样，同一个位置，有两个标签
-            if yolo_masks is not None:
-                for idx, class_id in enumerate(yolo_class_idcs):
-                    if class_id not in class_idcs:
-                        new_masks = np.concatenate((new_masks,yolo_masks[idx:idx+1,:,:]),axis=0)
-                        new_class_idcs = np.append(new_class_idcs,[class_id],axis=0)
-                        new_scores = np.append(new_scores,[yolo_scores[idx]],axis=0)
-                    else:
-                        index = np.where(new_class_idcs==class_id)
-                        new_masks[index] = yolo_masks[idx]
-        return new_masks, new_class_idcs, new_scores
+        # 进行过滤
+        masks,class_idcs,scores = self.filter_class_ids(masks,class_idcs,scores,detic_keep_ids)
+        if yolo_masks is not None and len(yolo_keep_ids)!=0:
+            yolo_masks,yolo_class_idcs,yolo_scores = self.filter_class_ids(yolo_masks,yolo_class_idcs,yolo_scores,yolo_keep_ids)
+            masks = np.concatenate((masks,yolo_masks),axis=0)
+            class_idcs = np.concatenate((class_idcs,yolo_class_idcs),axis=0)
+            scores = np.concatenate((scores,yolo_scores),axis=0)
+        return masks, class_idcs, scores
 
 
     def predict(
@@ -380,6 +443,14 @@ class DeticPerception(PerceptionModule):
         depth = obs.depth
         height, width, _ = image.shape
         pred = self.predictor(image)
+        if self.add_rooms:
+            room_pred = self.room_predictor(image)
+
+        # 标签重映射
+        if self.detic_mapping is not None:
+            pred["instances"].pred_classes = torch.tensor(self.mapping_class_idcs(pred["instances"].pred_classes.cpu().numpy(),self.detic_mapping),device=f"cuda:{self.sem_gpu_id}")
+        if self.add_rooms:
+            room_pred["instances"].pred_classes = torch.tensor(self.mapping_class_idcs(room_pred["instances"].pred_classes.cpu().numpy(),self.room_mapping),device=f"cuda:{self.sem_gpu_id}")
 
         # 读取yolo预测
         yolo_pred = self.yolo_model(source=image,conf=self.yolo_confidence_threshold,device=f"cuda:{self.sem_gpu_id}")
@@ -396,26 +467,33 @@ class DeticPerception(PerceptionModule):
             visualization = visualizer.draw_instance_predictions(
                 predictions=pred["instances"].to(self.cpu_device)
             ).get_image()
+            if self.add_rooms:
+                room_visualization = visualizer.draw_instance_predictions(
+                    predictions=room_pred["instances"].to(self.cpu_device)
+                ).get_image()
+            else:
+                room_visualization = np.zeros_like(visualization)
             # 可视化 yolo结果
             im_bgr = yolo_pred.plot()  # BGR-order numpy array
-            im_rgb = Image.fromarray(im_bgr[..., ::-1])  # RGB-order PIL image
-            # plt.figure("detection")
-            fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+            # im_rgb = Image.fromarray(im_bgr[..., ::-1])  # RGB-order PIL image
+            im_rgb = im_bgr[..., ::-1]
 
-            # 绘制 visualization
-            ax[0].imshow(visualization)
-            ax[0].axis('off')
-            ax[0].set_title('Detection Result')
+            # 将三张图片拼接在一起
+            combined_image = cv2.hconcat([visualization, room_visualization, im_rgb])
 
-            # 绘制 im_rgb
-            ax[1].imshow(im_rgb)
-            ax[1].axis('off')
-            ax[1].set_title('Yolo Result')
-
-            plt.tight_layout()
-            plt.show()
+            # 在窗口中显示拼接后的图片
+            cv2.imshow('Combined Images', combined_image)
+            cv2.waitKey()
         
         masks, class_idcs, scores = self.combine_results(pred,yolo_pred,self.yolo_mian,height, width)
+        # 单独获取room_predict
+        if self.add_rooms:
+            room_masks = room_pred["instances"].pred_masks.cpu().numpy()# n,w,h
+            room_class_idcs = room_pred["instances"].pred_classes.cpu().numpy() # n
+            room_scores = room_pred["instances"].scores.cpu().numpy() # n
+            if debug:
+                room_names = [self.metadata.thing_classes[idx] for idx in room_class_idcs ]
+                print(f"the room is {room_names}")
 
         # @gyzp : detect error
         if self.log_detect:
@@ -433,8 +511,17 @@ class DeticPerception(PerceptionModule):
             masks = np.array(
                 [filter_depth(mask, depth, depth_threshold) for mask in masks]
             )
+            if self.add_rooms:
+                room_masks = np.array(
+                [filter_depth(mask, depth, depth_threshold) for mask in room_masks]
+            )
 
         semantic_map, instance_map = overlay_masks(masks, class_idcs, (height, width))
+        if self.add_rooms:
+            room_semantic_map, room_instance_map = overlay_masks(room_masks, room_class_idcs, (height, width))
+        # if visualize:
+        #     sem_map_visulization = visualizer.draw_sem_seg(sem_seg=semantic_map)
+        # 调用不了
 
         obs.semantic = semantic_map.astype(int)
         obs.instance = instance_map.astype(int)
@@ -444,7 +531,10 @@ class DeticPerception(PerceptionModule):
         obs.task_observations["instance_classes"] = class_idcs
         obs.task_observations["instance_scores"] = scores
         obs.task_observations["semantic_frame"] = None
-
+        if self.add_rooms and len(room_class_idcs)!=0:
+            obs.task_observations["room_semantic"] = room_semantic_map.astype(int)
+        else:
+            obs.task_observations["room_semantic"] = None
         return obs
 
 

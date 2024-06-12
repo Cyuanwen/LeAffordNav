@@ -10,7 +10,7 @@ VISION:
   confidence_threshold: 0.45 # detic object detection confidence threshold
   yolo_confidence_threshold: 0.75
   yolo_main: True # if true use yolo as main detector
-  log_detect: True # if true log detection error
+  log_detect: False # if true log detection error
 
 SEMANTIC_MAP:
   semantic_categories: rearrange # map semantic channel categories ("coco_indoor", "longtail_indoor", "mukul_indoor", "rearrange")

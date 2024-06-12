@@ -12,6 +12,16 @@
 4. 操作是否成功
 5. 机器人摄像头朝角？
 info: rl place会走动，然后放上去
+
+INFO: compass, gps 坐标系-可点开相应变量，有注释
+x 轴正方向为 向前(m)
+y 轴正方向为 向左(m)
+compass 与x轴正方向的夹角(raid), 向左为正弧度
+
+rot, pos 坐标系-暂未找到说明，不太清楚
+rot 范围只有[0，3.7],没有负角度，似乎两个相差不多的角度，是反方向
+pos三个维度中，只有第一维度和第三维度有意义，其中 rot 0度的时候对应第一维度，但rot为1.5（即90度）的时候有可能对应正的第三维度，也有可能对应负的第三维度
+经实验，似乎 第一维度表示x，第二维度表示y，rot表示与x轴正半轴的夹角的绝对值
 '''
 import argparse
 import os
@@ -40,9 +50,10 @@ from PIL import Image
 from habitat_sim.utils.common import d3_40_colors_rgb
 from home_robot.agent.ovmm_agent.place_agent import PlaceAgent #单独的放置agent
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
+import json
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
-show_image = False
+show_image = True
 debug = True
 manipulation = "place" # 操作技能 place or pick
 
@@ -91,6 +102,16 @@ def get_place_success(hab_info):
     # ) * (episode_metrics["END.ovmm_place_success"] == 1)
     place_success = (hab_info['robot_collisions']['robot_scene_colls'] == 0) * (hab_info['ovmm_place_success'])
     return place_success
+
+# 手动控制
+def convertManualInput(code):
+    # ctrl_map = {'a': "RotateLeft_90", 'w': "MoveAhead_25", 'd': "RotateRight_90", 'u': 'LookUp_15', 'n': 'LookDown_15'}
+    ctrl_map = {'a': DiscreteNavigationAction.TURN_LEFT, 'w': DiscreteNavigationAction.MOVE_FORWARD, 'd': DiscreteNavigationAction.TURN_RIGHT,"s":DiscreteNavigationAction.STOP,"n":DiscreteNavigationAction.NAVIGATION_MODE}
+    # DiscreteNavigationAction
+    if code in ctrl_map:
+        return ctrl_map[code]
+    else:
+        return DiscreteNavigationAction.EMPTY_ACTION
 
 def extract_scene_id(scene_id: str) -> str:
     """extracts scene id from string containing the scene id"""
@@ -226,7 +247,8 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
 
 
 def gen_place_data(
-    data_dir: str, dataset_file: h5py.File, env: HabitatOpenVocabManipEnv, agent
+    data_dir: str, dataset_file: h5py.File, env: HabitatOpenVocabManipEnv, agent,
+    manual=False
 ):
     """Generates images of receptacles by episode for all scenes"""
 
@@ -276,7 +298,7 @@ def gen_place_data(
         # for recep in receptacle_positions[scene_id]:
         recep = observations.task_observations['place_recep_name']
         recep_vals = list(receptacle_positions[scene_id][recep])
-
+        scene_ep_data = []
         for pos_pair in recep_vals:
             pos_pair_lst = list(pos_pair)
             recep_position = np.array(pos_pair_lst[:3])
@@ -305,29 +327,50 @@ def gen_place_data(
                 cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
                 semantic_img = get_semantic_vis(observations.semantic)
                 cv2.imshow("semantic",semantic_img)
-                cv2.waitKey() 
+                cv2.waitKey(1) 
             
+            start_info = {
+                "rgb":observations.rgb,
+                "depth":observations.depth,
+                "semantic":observations.semantic,
+                "rotation":float(rot),
+                "position":list(pos),
+                "compass":observations.compass,
+                "gps":observations.gps,
+            }
             # 执行放置动作
             while not done:
-                action, info, _ = agent.act(observations)
+                if not manual:
+                    action, info, _ = agent.act(observations)
+                else:
+                    manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
+                    action = convertManualInput(manual_step)
+                    info = None
+                if debug:
+                    rot, pos = env.get_rot_pos()
+                    print(f"initial rot and pos is {rot},{pos}")
                 observations, done, hab_info = env.apply_action(action, info)
-                # if debug:
-                #     new_rot, new_pos = env.get_rot_pos()
-                #     if new_rot != rot:
-                #         print(f"new_rot {new_rot} is not equall with rot {rot}")
-                #     if new_pos != pos:
-                #         print(f"new_pos {new_pos} is not equall with pos {pos}")
+                print(f"action is {action}")
+                if type(action) == DiscreteNavigationAction:
+                    print("debug")
+                if debug:
+                    new_rot, new_pos = env.get_rot_pos()
+                    print(f"new rot and pos is {new_rot},{new_pos}")
+                    if new_rot != rot:
+                        print(f"new_rot {new_rot} is not equall with rot {rot}")
+                    if new_pos != pos:
+                        print(f"new_pos {new_pos} is not equall with pos {pos}")
+                    print(f"compass {observations.compass}")
+                    print(f"gps: {observations.gps}")
+                    # cv2.imwrite(f"cyw/test_data/rgb_{new_rot}.jpg",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
                 if show_image:
                     cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
                     cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
                     semantic_img = get_semantic_vis(observations.semantic)
                     cv2.imshow("semantic",semantic_img)
-                    cv2.waitKey()
-                if debug:
-                    if done:
-                        print("debug")
+                    cv2.waitKey(1)
+            new_rot, new_pos = env.get_rot_pos()
             if debug:
-                new_rot, new_pos = env.get_rot_pos()
                 if new_rot != rot:
                     print(f"new_rot {new_rot} is not equall with rot {rot}")
                 if new_pos != pos:
@@ -336,13 +379,36 @@ def gen_place_data(
                 # 执行完动作，机器人的位置似乎就不对了？不是因为执行动作使得机器人位置不对，而是因为env._reset_stats()使得机器人位置不对 
             place_success = get_place_success(hab_info)
             if place_success:
-                print("debug")
+                print("place success!!!")
+                # NOTE 之后可能只有放成功的才用
+            end_info = {
+                "rgb":observations.rgb,
+                "depth":observations.depth,
+                "semantic":observations.semantic,
+                "rotation":float(new_rot),
+                "position":list(new_pos),
+                "compass":observations.compass,
+                "gps":observations.gps,
+            }
+            scene_ep_data.append(
+                {
+                    "recep_position":recep_position,
+                    "start_info": start_info,
+                    "end_info": end_info,
+                    "place_recep_name":observations.task_observations['place_recep_name'],
+                    "object_name":observations.task_observations['object_name'],
+                }
+            )
             # TODO 做好结果记录
             agent.reset()
             env._reset_stats() # 重置一些状态，但不跳转到下一个episode
-            
-
-                
+            # scene_ep_grp.create_dataset("start", data=observations.rgb)
+            # 测试
+            # with open(os.path.join(data_dir,"test.json"),'w') as f:
+            #     json.dump(scene_ep_data,f)
+            with open(os.path.join(data_dir,"test.pkl"),"wb") as f:
+                pickle.dump(scene_ep_data,f)
+ 
             # recep_images = np.concatenate(recep_images, axis=0)  # Shape is (N, H, W, 3)
             # scene_ep_grp.create_dataset(recep, data=recep_images)
         
@@ -401,6 +467,12 @@ if __name__ == "__main__":
         default="cyw/configs/debug/agent/heuristic_agent_place.yaml",
         help="Path to config yaml",
     )
+    parser.add_argument(
+        "--manual",
+        action="store_true",
+        default=False,
+        help="if true, use manul control"
+    )
     args = parser.parse_args()
 
     # get habitat config
@@ -435,7 +507,7 @@ if __name__ == "__main__":
     # receptacle_position_aggregate(args.data_dir, env)
 
     # Generate images of receptacles by episode
-    gen_place_data(args.data_dir, dataset_file, env, agent)
+    gen_place_data(args.data_dir, dataset_file, env, agent,args.manual)
 
 
     # Close the h5py file

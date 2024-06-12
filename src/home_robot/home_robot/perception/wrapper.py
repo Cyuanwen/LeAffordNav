@@ -16,6 +16,13 @@ from home_robot.utils.config import load_config
 
 # @cyw
 import os
+from enum import IntEnum, auto
+
+class SemanticVocab(IntEnum):
+    FULL = auto()
+    SIMPLE = auto()
+    ALL = auto()
+
 ROOMS = ['bedroom', 'living room', 'bathroom', 'kitchen', 'dining room', 'office room', 'gym', 'lounge', 'laundry room']
 ROOMS_id_to_name = {id: room for id, room in enumerate(ROOMS)}
 
@@ -42,6 +49,7 @@ class OvmmPerception:
         self._current_vocabulary: RearrangeDETICCategories = None
         self._current_vocabulary_id: int = None
         self.verbose = verbose
+        self.add_room = getattr(self.config.AGENT.SEMANTIC_MAP,"record_room",False)
         if self._detection_module == "detic":
             # Lazy import
             from home_robot.perception.detection.detic.detic_perception import (
@@ -102,6 +110,7 @@ class OvmmPerception:
                 yolo_main=yolo_main,
                 log_detect=log_detect,
                 log_dir = log_dir,
+                add_rooms = self.add_room,
                 **module_kwargs,
             )
         else:
@@ -131,7 +140,28 @@ class OvmmPerception:
         self.segmenter_classes = (
             ["."] + list(vocabulary.goal_id_to_goal_name.values()) + ["other"]
         )
-        self._segmentation.reset_vocab(self.segmenter_classes)
+        # self._segmentation.reset_vocab(self.segmenter_classes)
+        # @cyw
+        if vocabulary_id == SemanticVocab.SIMPLE:
+            if self.add_room:
+                simple_vocab = vocabulary
+                simple_vocab = (
+                    ["."] + list(simple_vocab.goal_id_to_goal_name.values())[:3] + ["other"]
+                )
+                self._segmentation.reset_vocab(self.segmenter_classes,simple_vocab)
+            else:
+                self._segmentation.reset_vocab(self.segmenter_classes)
+        else:
+            simple_vocab = self._vocabularies[SemanticVocab.SIMPLE]
+            if self.add_room:     
+                simple_vocab = (
+                    ["."] + list(simple_vocab.goal_id_to_goal_name.values())[:3] + ["other"]
+                )
+            else:
+                simple_vocab = (
+                    ["."] + list(simple_vocab.goal_id_to_goal_name.values()) + ["other"]
+                )
+            self._segmentation.reset_vocab(self.segmenter_classes,simple_vocab)
 
         self.vocabulary_name_to_id = {
             name: id for id, name in vocabulary.goal_id_to_goal_name.items()

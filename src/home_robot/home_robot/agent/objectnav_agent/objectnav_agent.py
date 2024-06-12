@@ -365,6 +365,7 @@ class ObjectNavAgent(Agent):
         # @cyw
         if debug:
             print(np.unique(obs.semantic))
+            print(torch.where(torch.sum(obs_preprocessed[0,4:,:,:],dim=(1,2))!=0))
 
         if "obstacle_locations" in obs.task_observations:
             obstacle_locations = obs.task_observations["obstacle_locations"]
@@ -508,6 +509,15 @@ class ObjectNavAgent(Agent):
                     obs.semantic == obs.task_observations["end_recep_goal"]
                 ] = end_recep_idx
         semantic = self.one_hot_encoding[torch.from_numpy(semantic).to(self.device)]
+        if debug:
+            print(torch.where(torch.sum(semantic,dim=(0,1))!=0))
+        # @cyw
+        if "room_semantic" in obs.task_observations and obs.task_observations["room_semantic"] is not None:
+            room_semantic = self.one_hot_encoding[torch.from_numpy(obs.task_observations["room_semantic"]).int().to(self.device)]
+            semantic = semantic + room_semantic
+            if debug:
+                print(torch.where(torch.sum(room_semantic,dim=(0,1))!=0))
+                print(torch.where(torch.sum(semantic,dim=(0,1))!=0))
 
         obs_preprocessed = torch.cat([rgb, depth, semantic], dim=-1)
         if self.record_instance_ids:
