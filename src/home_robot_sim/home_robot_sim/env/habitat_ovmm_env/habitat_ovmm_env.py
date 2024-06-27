@@ -35,6 +35,10 @@ from home_robot.utils.constants import (
 from home_robot.utils.image import Camera, convert_xz_y_to_xyz, opengl_to_opencv
 from home_robot_sim.env.habitat_abstract_env import HabitatEnv
 from home_robot_sim.env.habitat_objectnav_env.visualizer import Visualizer
+from habitat.utils.geometry_utils import (
+    quaternion_from_coeff,
+    quaternion_rotate_vector,
+)
 
 
 class SimJointActionIndex(IntEnum):
@@ -483,13 +487,92 @@ class HabitatOpenVocabManipEnv(HabitatEnv):
         )
 
         return observations
+    
+    def get_current_rotation(self):
+        '''
+            获得世界坐标系的 朝向四元数
+        '''
+        task = self.habitat_env.env.env.habitat_env.task
+        compass_sensor = task.sensor_suite.sensors['robot_start_compass']
+        current_rotation = compass_sensor.get_agent_current_rotation(self.habitat_env.env.habitat_env._sim)
+        return current_rotation
+    
+    def get_current_position(self):
+        '''
+            获得世界坐标系下的位置
+        '''
+        task = self.habitat_env.env.env.habitat_env.task
+        gps_sensor = task.sensor_suite.sensors['robot_start_gps']
+        position = gps_sensor.get_agent_current_position(self.habitat_env.env.habitat_env._sim)
+        return position
+    
+    def get_relative_gps(self,position):
+        '''
+            计算 某一位置 position 在以当前位置朝向建立坐标系下的 gps 位置
+        '''
+        task = self.habitat_env.env.env.habitat_env.task
+        gps_sensor = task.sensor_suite.sensors['robot_start_gps']
 
+        rotation_world_current = self.get_current_rotation()
+        current_position = self.get_current_position()
+        origin = np.array(current_position, dtype=np.float32)
+
+        relative_position = quaternion_rotate_vector(
+            rotation_world_current.inverse(), position - origin
+            )
+        if gps_sensor._dimensionality == 2:
+            gps = np.array(
+                [-relative_position[2], relative_position[0]],
+                dtype=np.float32,
+            )
+        else:
+            gps = relative_position.astype(np.float32)
+        gps = self._preprocess_xy(gps)
+        return gps
+
+
+# ******************** 弃用代码 ***************************
     def get_rot_pos(self):
         '''
             获取当前agent的posation 和 rotation
             参考：src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/utils.py
+            NOTE 代码有误，弃用
         '''
         agent = self.habitat_env.env.habitat_env._sim.articulated_agent
+        # sim.articulated_agent.sim_obj.rotation
         rotation = agent.base_rot
         position = agent.base_pos
         return rotation, position
+
+    def get_gps(self, position=None):
+        '''由position转为gps, gps 以 episode的start position 和 start rotation建立坐标系
+            Argument:
+                position: vector (x,z,y)
+                None时，计算 agent本身position 的gps,验证用
+            ref: src/third_party/habitat-lab/habitat-lab/habitat/tasks/nav/nav.py gpssensor
+        '''
+        episode = self.habitat_env.env.env.habitat_env.current_episode
+        task = self.habitat_env.env.env.habitat_env.task
+        gps_sensor = task.sensor_suite.sensors['robot_start_gps']
+
+        start_position = gps_sensor.get_agent_start_position(episode, task)
+        rotation_world_start = gps_sensor.get_agent_start_rotation(episode, task)
+
+        origin = np.array(start_position, dtype=np.float32)
+
+        if position is None:
+            position = gps_sensor.get_agent_current_position(self.habitat_env.env.habitat_env._sim)
+
+        relative_position = quaternion_rotate_vector(
+            rotation_world_start.inverse(), position - origin
+        )
+        if gps_sensor._dimensionality == 2:
+            gps = np.array(
+                [-relative_position[2], relative_position[0]],
+                dtype=np.float32,
+            )
+        else:
+            gps = relative_position.astype(np.float32)
+        gps = self._preprocess_xy(gps)
+        return gps
+

@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: ./temp/models/Qwen1.5-7B     # base model path or huggingface model name
+model_name_or_path: ./temp/models/Qwen2-7B     # base model path or huggingface model name
 
 ### method
 stage: sft
@@ -12,7 +12,7 @@ ddp_timeout: 180000000
 
 ### dataset
 dataset_dir: ./data/dataset                      # dataset path
-dataset: task2_prompt0_train                     # the name of the dataset being used, defined in dataset_dir/dataset_info.json
+dataset: all_0621_prompt0                     # the name of the dataset being used, defined in dataset_dir/dataset_info.json
 template: qwen                                   # varies from LLM to LLM, see `LLaMA-Factory/README.md##Supported Models`
 cutoff_len: 512
 max_samples: 1000000                             # the maximum number of samples to be used in the dataset
@@ -20,7 +20,7 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: ./temp/results/sft/qwen/lora-task2_prompt0_train_demo
+output_dir: ./temp/results/sft/qwen2/lora-all_0621_prompt0_train
 logging_steps: 10
 load_best_model_at_end: true  # load the best model when training ends
 save_total_limit: 1           # only keep one checkpoint(if not the best) in the output directory
@@ -31,7 +31,7 @@ overwrite_output_dir: true
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 2
 learning_rate: 0.0001
-num_train_epochs: 3.0         # the number of training epochs
+num_train_epochs: 5.0         # the number of training epochs
 lr_scheduler_type: cosine
 warmup_steps: 0.1
 fp16: true

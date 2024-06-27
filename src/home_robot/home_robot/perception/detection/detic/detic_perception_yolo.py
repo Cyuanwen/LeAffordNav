@@ -39,7 +39,9 @@ import matplotlib.pyplot as plt
 from home_robot.perception.wrapper import ROOMS
 visualize = False
 debug = False
-YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe"] #训练场景没有这三类数据，yolo识别不了
+# YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe"] #训练场景没有这三类数据，yolo识别不了
+# 根据最新版yolo验证结果，增加几类
+YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe","serving_cart","stand"] #训练场景没有这三类数据，yolo识别不了
 # @gyzp
 # sys.path.append(r"gyzp/utils/preception")
 # from detect_error import DetectionErrorWrapper

@@ -9,4 +9,4 @@ export HF_ENDPOINT=https://hf-mirror.com
 cd "$(dirname "$0")"/..
 
 # Download the model
-huggingface-cli download --resume-download Qwen/Qwen1.5-7B --local-dir ./temp/models/Qwen1.5-7B
+huggingface-cli download --resume-download Qwen/Qwen2-7B --local-dir ./temp/models/Qwen2-7B

@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 '''
-place 位姿数据采集代码：（若需要采集pick skill 需要重新初始化环境）
+测试代码：
 1. 原本假设gps和pos之间存在坐标旋转以及偏置关系，但测试后，发现随着机器人走动，这个关系似乎不太成立（原因暂不清楚）
 2. 阅读源代码 gps获取过程后，按照源代码的方式将pos转为 gps,需要注意的是 env._reset_stats() 后，agent start postiont 和 start rotation都会变化，坐标系按照stat position 和 start rotation建立，因此也发生变化，因此env._reset_stats() 后要重新调用 env.get_gps() 获取 容器 gps
 
@@ -15,9 +15,8 @@ place 位姿数据采集代码：（若需要采集pick skill 需要重新初始
 2. 容器位置
 3. rgb, depth, semantic
 4. 操作是否成功
-NOTE 记录世界坐标系下的位置，后续需根据当前位置计算相对坐标
 
-info: rl place会走动，然后放上去；gps和compass是以机器人start position 和 start rotation 建立坐标系的坐标
+info: rl place会走动，然后放上去
 
 INFO: compass, gps 坐标系-可点开相应变量，有注释
 x 轴正方向为 向前(m)
@@ -30,27 +29,21 @@ pos三个维度中，只有第一维度和第三维度有意义，其中 rot 0�
 经实验，似乎 第一维度表示x，第二维度表示y，rot表示与x轴正半轴的夹角的绝对值（源代码注释是三个维度分别表示x,y,z）
 
 TODO
-只采集成功的数据，似乎也不行，还要训练模型预测是否成功
-每种放置策略的数据单独放置，每个episode数据单独放置文件夹
-采数据前，要重新采一遍容器位置数据，现在使用采集容器的结果替代
-先环顾四周，建立语义地图
-
+将同一个容器的数据放在同一个list里面
+每中放置策略的数据单独放置
+移动一下，把容器的位置标定出来
 
 DONE
 先测试相对位置变化关系，然后将容器位置转换为GPS
 验证一下gps 位置对不对
 经过初步测试后，在大批量采集数据的时候，可能要有针对性的采集一下
-移动一下，把容器的位置标定出来（此法不通）
-记录绝对坐标以及坐标变换关系，之后针对每个开始位置，计算相对坐标
-将同一个容器的数据放在同一个list里面
 
-NOTE 
-既然能看到容器，relative recep position 容器一定在agent前面，所以x一定为正
-agent 的 fall_wait步数要为 200 ，否则东西没落到recep上，判定也是失败 
+NOTE 采数据前，要重新采一遍容器位置数据，现在使用采集容器的结果替代
 '''
 import argparse
 import os
 import pickle
+from turtle import rt
 from typing import Optional, Tuple
 
 import h5py
@@ -73,15 +66,33 @@ import cv2
 from home_robot.core.interfaces import DiscreteNavigationAction
 from PIL import Image
 from habitat_sim.utils.common import d3_40_colors_rgb
+from home_robot.agent.ovmm_agent.place_agent import PlaceAgent #单独的放置agent
 from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
-from habitat.utils.visualizations import maps
 import json
-# from cyw.goal_point.utils import get_relative_position
-from tqdm import tqdm
+# cyw/goal_point/utils.py
+from cyw.goal_point.utils import coordinate_transform, coord_transfer
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
 show_image = False
 debug = True
+
+Foward = [
+    ["ahead"],
+    ["left_90","ahead"],
+    ["right_90","ahead"],
+    ["left_90","left_90","ahead"]
+]
+name2action = {
+    "ahead":[DiscreteNavigationAction.MOVE_FORWARD],
+    "left_90": [DiscreteNavigationAction.TURN_LEFT] * 3,# 每次移动是 30 度
+    "right_90": [DiscreteNavigationAction.TURN_RIGHT] * 3 ,
+}
+Foward_actions = []
+for actions in Foward:
+    discrete_actions = []
+    for name in actions:
+        discrete_actions += name2action[name]
+    Foward_actions.append(discrete_actions)
 
 def get_semantic_vis(semantic_map, palette=d3_40_colors_rgb):
     semantic_map_vis = Image.new(
@@ -147,13 +158,6 @@ def extract_scene_id(scene_id: str) -> str:
     return after
 
 # @cyw
-# 可视化 top_down_map copy from src/third_party/habitat-lab/examples/shortest_path_follower_example.py
-def draw_top_down_map(info, output_size):
-    return maps.colorize_draw_agent_and_fit_to_height(
-        info["top_down_map"], output_size
-    )
-
-# @cyw
 # def get_init_scene_episode_count_dict(
 #     env: HabitatOpenVocabManipEnv,
 # ) -> Tuple(dict, int):
@@ -203,7 +207,7 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
 
         if not episode.goal_recep_category in receptacle_positions[scene_id]:
             receptacle_positions[scene_id][episode.goal_recep_category] = []
-        for recep in tqdm(episode.candidate_goal_receps):
+        for recep in episode.candidate_goal_receps:
             recep_position = list(recep.position) # recep数据里面没有朝向
             # 搜索所有waypoint
             view_point_positions = set()
@@ -228,7 +232,7 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
         pickle.dump(receptacle_positions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def gen_place_data(
-    data_dir: str, env: HabitatOpenVocabManipEnv, agent,
+    data_dir: str, dataset_file: h5py.File, env: HabitatOpenVocabManipEnv, agent,
     manual=False,
     baseline_name:Optional[str]=None,
 ):
@@ -241,19 +245,21 @@ def gen_place_data(
     # This is for iterating through all episodes once using only one env
     count_dict, num_episodes = get_init_scene_episode_count_dict(env)
 
-    # # Also, creating folders for storing dataset
-    # for episode in env._dataset.episodes:
-    #     scene_id = extract_scene_id(episode.scene_id)
-    #     if f"scene_{scene_id}" not in dataset_file:
-    #         dataset_file.create_group(f"scene_{scene_id}")
+    # Also, creating folders for storing dataset
+    for episode in env._dataset.episodes:
+        scene_id = extract_scene_id(episode.scene_id)
+        if f"scene_{scene_id}" not in dataset_file:
+            dataset_file.create_group(f"scene_{scene_id}")
 
     with open(f"./{data_dir}/recep_position.pickle", "rb") as handle:
         receptacle_positions = pickle.load(handle)
 
     count_episodes = 0
     
+    coordinate_transformer = coordinate_transform()
+
     # Ideally, we can make it like an iterator to make it feel more intuitive
-    total_data = []
+    data = []
     while True:
         # Get a new episode
         # obs = env.reset()
@@ -263,6 +269,8 @@ def gen_place_data(
         agent.reset()
         if debug:
             print(f"*************new episode episode id {episode.episode_id}**************")
+
+        coordinate_transformer.reset()
 
         # Check if you have iterated through all episodes and if yes, break the loop
         hash_str = f"ep_{episode.episode_id}_scene_{scene_id}"
@@ -274,25 +282,24 @@ def gen_place_data(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
 
+        scene_ep_grp = dataset_file.create_group(
+            f"/scene_{scene_id}/ep_{episode.episode_id}"
+        )
+
         # for recep in receptacle_positions[scene_id]:
         recep = observations.task_observations['place_recep_name']
-        object_name = observations.task_observations["object_name"]
-        scene_ep_data = {
-            "scene_id": scene_id,
-            "episode_id":episode.episode_id,
-            "recep": recep,
-            "object_name": object_name,
-            "skill_waypoint_data": []
-        }
         recep_vals = receptacle_positions[scene_id][recep]
+        scene_ep_data = []
+        success = 0
         for pos_pair in recep_vals:
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
+            # 计算recep 在gps坐标系下的位置
+            recep_gps = env.get_gps(recep_position)
+            robot_gps = env.get_gps()
+            if not np.allclose(robot_gps,observations.gps,rtol=0.01):
+                print("wrong")
             view_point_positions = pos_pair["view_point_positions"]
-            skill_waypoint_singile_recep_data = {
-                "recep_position": recep_position,
-                "each_view_point_data":[]
-            }
             for view_point_position in view_point_positions:
                 view_point_position = np.array(view_point_position).astype(np.float32)
                 start_position, start_rotation, _ = get_robot_spawns(
@@ -306,56 +313,78 @@ def gen_place_data(
                 )
                 ''' 初始化 '''
                 start_observations = env.set_position(start_position,start_rotation)
-                # start_rot, start_pos = env.get_rot_pos()
+                start_rot, start_pos = env.get_rot_pos()
                 # 经实验：rot 和 start_rotation 会相差一些，大多数时候，要么成相反数，要么大小相差不多，似乎没有规律？ start_pos 和 start_position 一般是一致的
-
-                start_rotation = env.get_current_rotation()
-                start_position = np.array(env.get_current_position()).astype(np.float32)
+                start_compass = start_observations.compass
+                start_gps = start_observations.gps
                 
-                '''计算容器gps'''
-                relative_recep_gps = env.get_relative_gps(recep_position) # 通过环境转换和通过 自己算的坐标转换的又不一样，但基本是 x 一样，y相差一些，不过似乎 y基本都很小（因为一开始的时候朝向容器了，所以容器基本都在agent正前方
-                # 用于后续验证计算是否正确
-                # if debug:
-                #     cv2.imwrite(f"cyw/test_data/rgb_{relative_recep_gps}.jpg",cv2.cvtColor(start_observations.rgb,cv2.COLOR_BGR2RGB))
+                '''gps 标定 '''
+                relative_recep_gps = None # 每一个view point点，相对位置都会变化，都要重新计算
+                if relative_recep_gps is None:
+                    for index in range(len(Foward_actions)):
+                        # NOTE 坐标系变换关系在机器人运动过程中还在变换，这样得到的gps可能是错的
+                        actions = Foward_actions[index]
+                        for action in actions:
+                            observations, done, hab_info = env.apply_action(action)
+                            if show_image:
+                                cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
+                                cv2.waitKey(1)
+                        new_gps = observations.gps
+                        if (new_gps != start_gps).any():
+                            _, new_pos = env.get_rot_pos()
+                            coordinate_transformer.set_rotation_offset(start_pos,new_pos,start_gps,new_gps)
+                            recep_gps_my = coordinate_transformer.get_gps_coord(recep_position)
+                            recep_gps = env.get_gps(recep_position)
+                            if not np.allclose(recep_gps,recep_gps_my,rtol=0.01):
+                                print("gps transfer is wrong")
+                            relative_recep_gps = coord_transfer(
+                                robot_gps=start_gps,
+                                compass=start_compass,
+                                gps=recep_gps
+                                )
+                            if debug:
+                                cv2.imwrite(f"cyw/test_data/rgb_{relative_recep_gps}.jpg",cv2.cvtColor(start_observations.rgb,cv2.COLOR_BGR2RGB))
+                                transferd_new_gps = coordinate_transformer.get_gps_coord(new_pos)
+                                if not np.allclose(transferd_new_gps,observations.gps,rtol=0.01):
+                                    print("error the position to gps transfer is wrong")
+                            break
+                        else:
+                            # 可能前方有障碍物，没走成功，将机器人放回原始位置
+                            observations = env.set_position(start_position,start_rotation)
+                            if debug:
+                                print(f"place robot to initial location {observations.gps == start_gps}, {observations.compass == start_compass}")
+                
+                    observations = env.set_position(start_position,start_rotation)
+                    if debug:
+                        print(f"place robot to initial location {observations.gps == start_gps}, {observations.compass == start_compass}")
+                               
+                if relative_recep_gps is None: #如果没有获得 recep gps，则放弃该 view_point_position
+                    continue
 
                 # 拿起任务中要放的东西
                 observations = env.pick_up_obj()
 
                 '''执行放置动作 '''
-                map_id = 0
                 while not done:
                     if not manual:
                         action, info, _ = agent.act(observations)
-                        # sensor_pose: (7,) array denoting global pose (x, y, o) and local map boundaries planning window (gy1, gy2, gx1, gy2)
                     else:
                         manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
                         action,info = convertManualInput(manual_step)
                     observations, done, hab_info = env.apply_action(action, info)
                     print(f"action is {action}")
 
-                    '''可视化 top down map '''
-                    if "top_down_map" in hab_info:
-                        # TODO top_down_map 比例尺不对？
-                        # # By default, `get_topdown_map_from_sim` returns image
-                        # containing 0 if occupied, 1 if unoccupied, and 2 if border
-                        top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
-                        cv2.imwrite(f"cyw/test_data/top_down_map/top_down_map_{map_id}.jpg",top_down_map[0])
-                        cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",info['obstacle_map']*255)
-                        # info['sensor_pose']
-                        # 保存 pickle 文件，以便调试
-                        with open(f"cyw/test_data/top_down_map_data/top_down_map_{map_id}.pkl","wb") as f:
-                            pickle.dump(hab_info["top_down_map"],f)
-                        with open(f"cyw/test_data/info_data/info_{map_id}.pkl","wb") as f:
-                            pickle.dump(info,f)
-                        map_id += 1
-
-
-                    # if debug:
-                    #     # # 测试相对位姿
-                    #     # current_position = env.get_current_position()
-                    #     # robot_relative_start_position = get_relative_position(start_position,start_rotation,current_position)
-                    #     # print(f"robot_relative_start_position is {robot_relative_start_position}")
-                    #     # 经测试，代码正确
+                    if debug:
+                        # 测试 坐标变化是否正确
+                        _, new_pos = env.get_rot_pos()
+                        new_gps = coordinate_transformer.get_gps_coord(new_pos)
+                        print(f"new_pos is {new_pos}, new_rotation is {_}, compass {observations.compass}")
+                        if not np.allclose(new_gps,observations.gps,rtol=0.01):
+                            print(f"error the position to gps transfer is wrong, transfered gps is {new_gps}, gt gps is {observations.gps}")
+                            # 可能 pos 坐标系 一直 在随着运动变化？
+                        robot_gps = env.get_gps()
+                        if not np.allclose(robot_gps,observations.gps,rtol=0.01):
+                            print("wrong")
 
                     if show_image:
                         cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
@@ -366,34 +395,40 @@ def gen_place_data(
                 
                 ''' 执行完毕,获取数据 '''
                 # NOTE 需要在env._reset_stats之前，记录位姿信息
-                end_position = np.array(env.get_current_position()).astype(np.float32)
+                end_gps = observations.gps
+                end_compass = observations.compass
+                if debug:
+                    # 测试 坐标变化是否正确
+                    _, new_pos = env.get_rot_pos()
+                    new_gps = coordinate_transformer.get_gps_coord(new_pos)
+                    if not np.allclose(new_gps,end_gps,rtol=0.01):
+                        print("error the position to gps transfer is wrong")
+                    # TODO 这两个gps对不上
+
                 place_success = get_place_success(hab_info)
                 if debug:
                     print(f"place success is {place_success}")
                 
-                # 记录数据
-                skill_waypoint_singile_recep_data["each_view_point_data"].append(
-                    {
-                        "start_rgb": start_observations.rgb,
-                        "start_semantic": start_observations.semantic,
-                        "start_depth":start_observations.depth,
-                        "start_position":start_position,
-                        "start_rotation":start_rotation,
-                        "relative_recep_position": relative_recep_gps,
-                        "end_position": end_position,
-                        "place_success": place_success
-                    }
-                )
+
 
                 agent.reset()
+                coordinate_transformer.reset()
                 env._reset_stats() # 重置一些状态，但不跳转到下一个episode
-                # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标（现在记录绝对坐标，因此不需要重新计算）
-            scene_ep_data["skill_waypoint_data"].append(skill_waypoint_singile_recep_data)
+                # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标
             
         # 运行完一个episode
-        total_data.append(scene_ep_data)
-        with open(os.path.join(data_dir,f"{baseline_name}_place_waypoint.pkl"),"wb") as f:
-            pickle.dump(total_data,f)
+        place_sr = success / len(recep_vals)
+        print(f"*************the place sr is {place_sr} **********")
+        data.append(
+            {
+                "scene_id":scene_id,
+                "episode": episode.episode_id,
+                "scene_ep_data":scene_ep_data
+            }
+        )
+        with open(os.path.join(data_dir,f"{baseline_name}_test.pkl"),"wb") as f:
+            pickle.dump(data,f)
+        dataset_file.flush()
 
         # if count_episodes == num_episodes:
         #     break
@@ -479,7 +514,7 @@ if __name__ == "__main__":
 
     # Create h5py files
     os.makedirs(f"./{args.data_dir}", exist_ok=True)
-    # dataset_file = h5py.File(f"./{args.data_dir}/{args.datafile}.hdf5", "w")
+    dataset_file = h5py.File(f"./{args.data_dir}/{args.datafile}.hdf5", "w")
 
     # Create an env
     env = create_ovmm_env_fn(env_config)
@@ -489,8 +524,8 @@ if __name__ == "__main__":
 
     # Generate images of receptacles by episode
     baseline_name = args.baseline_config_path.split("/")[-1].split(".")[0]
-    gen_place_data(args.data_dir, env, agent,args.manual,baseline_name)
+    gen_place_data(args.data_dir, dataset_file, env, agent,args.manual,baseline_name)
 
 
-    # # Close the h5py file
-    # dataset_file.close()
+    # Close the h5py file
+    dataset_file.close()

@@ -172,6 +172,119 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 38. 旋转角度 30 度, 前进一步是0.25
 
+39. projects/real_world_ovmm/configs/example_cat_map.json 记录了所有的obj 与id的对应关系
+
+40. src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/sub_tasks/nav_to_obj_sensors.py 这个文件定义了 robot_start_gps 的计算方式
+
+41. start_gps (也是ovmm返回的gps) 计算方式：
+   ```
+          def get_observation(
+        self, observations, episode, task, *args: Any, **kwargs: Any
+    ):
+        start_position = self.get_agent_start_position(episode, task)
+        rotation_world_start = self.get_agent_start_rotation(episode, task)
+
+        origin = np.array(start_position, dtype=np.float32)
+
+        agent_position = self.get_agent_current_position(self._sim)
+
+        relative_agent_position = quaternion_rotate_vector(
+            rotation_world_start.inverse(), agent_position - origin
+        )
+        if self._dimensionality == 2:
+            return np.array(
+                [-relative_agent_position[2], relative_agent_position[0]],
+                dtype=np.float32,
+            )
+        else:
+            return relative_agent_position.astype(np.float32)
+   ```
+   按照起始位置，起始朝向建立坐标系， robot_start_gps 是在这一坐标系下的坐标位置（这段代码在 src/third_party/habitat-lab/habitat-lab/habitat/tasks/nav/nav.py 中）
+
+42. compass 计算方式
+   ```
+   def get_observation(
+        self, observations, episode, task, *args: Any, **kwargs: Any
+    ):
+        rotation_world_start = self.get_agent_start_rotation(episode, task)
+        rotation_world_agent = self.get_agent_current_rotation(self._sim)
+
+        if isinstance(rotation_world_agent, quaternion.quaternion):
+            return self._quat_to_xy_heading(
+                rotation_world_agent.inverse() * rotation_world_start
+            )
+        else:
+            raise ValueError("Agent's rotation was not a quaternion")
+   ```
+   似乎相当于 在起始坐标系下的 朝向？ src/third_party/habitat-lab/habitat-lab/habitat/tasks/nav/nav.py 
+   具体 agent pos 和 agent rot 计算方式如下
+
+   ```
+   @registry.register_sensor(name="RobotStartGPSSensor")
+   class RobotStartGPSSensor(EpisodicGPSSensor):
+      cls_uuid: str = "robot_start_gps"
+
+      def __init__(self, sim, config: "DictConfig", *args, **kwargs):
+         super().__init__(sim=sim, config=config)
+
+      def get_agent_start_position(self, episode, task):
+         return task._robot_start_position
+
+      def get_agent_start_rotation(self, episode, task):
+         return quaternion_from_coeff(task._robot_start_rotation)
+
+      def get_agent_current_position(self, sim):
+         return sim.articulated_agent.sim_obj.translation
+   ```
+
+   ```
+      @registry.register_sensor(name="RobotStartCompassSensor")
+class RobotStartCompassSensor(EpisodicCompassSensor):
+    cls_uuid: str = "robot_start_compass"
+
+    def __init__(self, sim, config: "DictConfig", *args, **kwargs):
+        super().__init__(sim=sim, config=config)
+
+    def get_agent_start_rotation(self, episode, task):
+        return quaternion_from_coeff(task._robot_start_rotation)
+
+    def get_agent_current_rotation(self, sim):
+        curr_quat = sim.articulated_agent.sim_obj.rotation
+        curr_rotation = [
+            curr_quat.vector.x,
+            curr_quat.vector.y,
+            curr_quat.vector.z,
+            curr_quat.scalar,
+        ]
+        return quaternion_from_coeff(curr_rotation)
+   ```
+   相关代码在 src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/sub_tasks/nav_to_obj_sensors.py 中
+
+43. src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/sub_tasks/nav_to_obj_task.py 中相关初始化代码，似乎有机器人初始位置放置，以及物体摆放
+
+44. sim.articulated_agent.sim_obj.translation 似乎和 sim.articulated_agent.base_pose 一样
+
+45.   hfov: 42.0              # horizontal field of view (in degrees) env里面指明了水平视场角 为 42 度
+
+46. top_down_map的计算方式在 src/third_party/habitat-lab/habitat-lab/habitat/tasks/nav/nav.py 中
+
+47. semantic map里面，原点都是 0，但是把开始位置初始化为地图中点
+```
+    p = map_size_parameters
+    global_pose[e].fill_(0.0)
+    global_pose[e, :2] = p.global_map_size_cm / 100.0 / 2.0
+
+    # Initialize starting agent locations
+    x, y = (global_pose[e, :2] * 100 / p.resolution).int()
+    global_map[e].fill_(0.0)
+    global_map[e, 2:4, y - 1 : y + 2, x - 1 : x + 2] = 1.0
+```
+src/home_robot/home_robot/mapping/map_utils.py
+
+48. cv2 里面 坐标轴： ➡ x
+                    ⬇ y
+
+49. 一开始的时候先向右旋转，右 为顺时针 左 为逆时针
 
 ## 各个split数据量大小
 val: 1199
