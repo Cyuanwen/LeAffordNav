@@ -129,9 +129,9 @@ if __name__ == "__main__":
     # merge env config and baseline config to create agent config
     agent_config = create_agent_config(env_config, baseline_config)
 
-    device_id = env_config.habitat.simulator.habitat_sim_v0.gpu_device_id
+    # device_id = env_config.habitat.simulator.habitat_sim_v0.gpu_device_id
     # # @cyw
-    # device_id = 1 
+    device_id = 2 
 
     # create agent
     if args.agent_type == "random":

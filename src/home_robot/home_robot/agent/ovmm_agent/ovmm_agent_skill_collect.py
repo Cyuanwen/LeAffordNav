@@ -1,6 +1,7 @@
 '''
 ovmm 技能采集代码 copy from src/home_robot/home_robot/agent/ovmm_agent/ovmm_agent.py
-
+在每个技能开始之前先环顾四周，建立语义地图，并且将此语义地图返回
+NOTE: 配置文件里面需要设置跳过非技能的步骤
 '''
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
@@ -30,6 +31,8 @@ debug = False
 show_rgb = True
 
 class Skill(IntEnum):
+    # @cwy
+    LOOK_AROUND = auto()
     NAV_TO_OBJ = auto()
     GAZE_AT_OBJ = auto()
     PICK = auto()
@@ -142,6 +145,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 config.AGENT.VISION,"log_detect",False
             )
         self.config = config
+        # @cyw
+        self.episode_panorama_start_steps = int(360 / config.ENVIRONMENT.turn_angle)
 
     def _get_info(self, obs: Observations) -> Dict[str, torch.Tensor]:
         """Get inputs for visual skill."""
@@ -196,7 +201,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
             self.place_agent.reset_vectorized()
         if self.nav_to_rec_agent is not None:
             self.nav_to_rec_agent.reset_vectorized()
-        self.states = torch.tensor([Skill.NAV_TO_OBJ] * self.num_environments)
+        # self.states = torch.tensor([Skill.NAV_TO_OBJ] * self.num_environments)
+        self.states = torch.tensor([Skill.LOOK_AROUND] * self.num_environments)
         self.pick_start_step = torch.tensor([0] * self.num_environments)
         self.gaze_at_obj_start_step = torch.tensor([0] * self.num_environments)
         self.place_start_step = torch.tensor([0] * self.num_environments)
@@ -214,7 +220,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
     def reset_vectorized_for_env(self, e: int):
         """Initialize agent state for a specific environment."""
-        self.states[e] = Skill.NAV_TO_OBJ
+        # self.states[e] = Skill.NAV_TO_OBJ
+        self.states[e] = Skill.LOOK_AROUND
         self.place_start_step[e] = 0
         self.pick_start_step[e] = 0
         self.gaze_at_obj_start_step[e] = 0
@@ -368,6 +375,23 @@ class OpenVocabManipAgent(ObjectNavAgent):
         # info overwrites planner_info entries for keys with same name
         info = {**planner_info, **info}
         self.timesteps[0] -= 1  # objectnav agent increments timestep
+        # 因为在act的函数里面还会加一次，所以，这里减回去
+        info["timestep"] = self.timesteps[0]
+        if action == DiscreteNavigationAction.STOP:
+            terminate = True
+        else:
+            terminate = False
+        return action, info, terminate
+    
+    # @cyw
+    def _look_around_map(
+        self, obs: Observations, info: Dict[str, Any]
+    ) -> Tuple[DiscreteNavigationAction, Any]:
+        action, planner_info = super().look_around(obs)
+        # info overwrites planner_info entries for keys with same name
+        info = {**planner_info, **info}
+        self.timesteps[0] -= 1  # objectnav agent increments timestep
+        # 因为在act的函数里面还会加一次，所以，这里减回去
         info["timestep"] = self.timesteps[0]
         if action == DiscreteNavigationAction.STOP:
             terminate = True
@@ -432,6 +456,20 @@ class OpenVocabManipAgent(ObjectNavAgent):
     or the action has no value and the new state does. The latter case indicates
     a state transition.
     """
+    # @cyw
+    def _look_around(
+        self, obs: Observations, info: Dict[str, Any]
+    )->Tuple[DiscreteNavigationAction, Any, Optional[Skill]]:
+        action, info, terminate = self._look_around_map(obs, info)
+        new_state = None
+        info["look_around_done"] = False
+        if info["timestep"]==self.episode_panorama_start_steps+1:
+            action = DiscreteNavigationAction.EMPTY_ACTION
+            info["look_around_done"] = True
+        elif info["timestep"]==self.episode_panorama_start_steps+2:
+            action = None
+            new_state = Skill.NAV_TO_OBJ
+        return action, info, new_state
 
     def _nav_to_obj(
         self, obs: Observations, info: Dict[str, Any]
@@ -616,7 +654,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print("debug")
      
         while action is None:
-            if self.states[0] == Skill.NAV_TO_OBJ:
+            # @cyw
+            if self.states[0] == Skill.LOOK_AROUND:
+                print(f"step: {self.timesteps[0]} -- look around")
+                action, info, new_state = self._look_around(obs, info)
+            elif self.states[0] == Skill.NAV_TO_OBJ:
                 print(f"step: {self.timesteps[0]} -- nav to obj")
                 action, info, new_state = self._nav_to_obj(obs, info)
             elif self.states[0] == Skill.GAZE_AT_OBJ:

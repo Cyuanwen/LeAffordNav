@@ -476,6 +476,136 @@ class ObjectNavAgent(Agent):
 
         return action, info
 
+    # @cyw
+    def look_around(self, obs: Observations) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
+        """Act end-to-end."""
+        if self.get_timing:
+            t0 = time.time()
+
+        # 1 - Obs preprocessing
+        (
+            obs_preprocessed,
+            pose_delta,
+            object_goal_category,
+            start_recep_goal_category,
+            end_recep_goal_category,
+            instance_id,
+            goal_name,
+            camera_pose,
+        ) = self._preprocess_obs(obs)
+
+        if "obstacle_locations" in obs.task_observations:
+            obstacle_locations = obs.task_observations["obstacle_locations"]
+            obstacle_locations = (
+                obstacle_locations * 100.0 / self.semantic_map.resolution
+            ).long()
+            (
+                obstacle_locations[:, 0],
+                obstacle_locations[:, 1],
+            ) = self.semantic_map.global_to_local(
+                obstacle_locations[:, 0], obstacle_locations[:, 1]
+            )
+
+            obstacle_locations = obstacle_locations.unsqueeze(0)
+        else:
+            obstacle_locations = None
+
+        if "free_locations" in obs.task_observations:
+            free_locations = obs.task_observations["free_locations"]
+            free_locations = (
+                free_locations * 100.0 / self.semantic_map.resolution
+            ).long()
+            (
+                free_locations[:, 0],
+                free_locations[:, 1],
+            ) = self.semantic_map.global_to_local(
+                free_locations[:, 0], free_locations[:, 1]
+            )
+
+            free_locations = free_locations.unsqueeze(0)
+        else:
+            free_locations = None
+
+        if self.get_timing:
+            t1 = time.time()
+            print(f"[Agent] Obs preprocessing time: {t1 - t0:.2f}")
+
+        semantic_max_val = None
+        if "semantic_max_val" in obs.task_observations:
+            semantic_max_val = obs.task_observations["semantic_max_val"]
+
+        # 2 - Semantic mapping + policy
+        planner_inputs, vis_inputs = self.prepare_planner_inputs(
+            obs_preprocessed,
+            pose_delta,
+            object_goal_category=object_goal_category,
+            start_recep_goal_category=start_recep_goal_category,
+            end_recep_goal_category=end_recep_goal_category,
+            instance_id=instance_id,
+            camera_pose=camera_pose,
+            nav_to_recep=self.get_nav_to_recep(),
+            semantic_max_val=semantic_max_val,
+            obstacle_locations=obstacle_locations,
+            free_locations=free_locations,
+        )
+
+        if self.get_timing:
+            t2 = time.time()
+            print(f"[Agent] Semantic mapping and policy time: {t2 - t1:.2f}")
+
+        # 3 - Planning
+        closest_goal_map = None
+        short_term_goal = None
+        dilated_obstacle_map = None
+        # if planner_inputs[0]["found_goal"]:
+        #     self.episode_panorama_start_steps = 0
+        # 强制agent 首先look around,其它不用管，外层在look around 结束后会进行包装
+        # prepare_planner_inputs 会把  self.timesteps + 1
+        # 继承类别在一开始时让self.time_step +1 这里又加一，因此 这里从2 开始
+        if self.timesteps[0] < self.episode_panorama_start_steps+2:
+            action = DiscreteNavigationAction.TURN_RIGHT
+        elif self.timesteps[0] > self.max_steps:
+            action = DiscreteNavigationAction.STOP
+        else:
+            (
+                action,
+                closest_goal_map,
+                short_term_goal,
+                dilated_obstacle_map,
+            ) = self.planner.plan(
+                **planner_inputs[0],
+                use_dilation_for_stg=self.use_dilation_for_stg,
+                timestep=self.timesteps[0],
+                debug=self.verbose,
+            )
+            # this is just changing the visualization but not the actual performance
+            # if self.timesteps_before_goal_update[0] == self.goal_update_steps - 1:
+            # self.closest_goal_map[0] = closest_goal_map
+            self.closest_goal_map[0] = closest_goal_map
+
+        if self.get_timing:
+            t3 = time.time()
+            print(f"[Agent] Planning time: {t3 - t2:.2f}")
+            print(f"[Agent] Total time: {t3 - t0:.2f}")
+
+        vis_inputs[0]["goal_name"] = obs.task_observations["goal_name"]
+        if self.visualize:
+            vis_inputs[0]["semantic_frame"] = obs.task_observations["semantic_frame"]
+            vis_inputs[0]["closest_goal_map"] = self.closest_goal_map[0]
+            vis_inputs[0]["third_person_image"] = obs.third_person_image
+            vis_inputs[0]["short_term_goal"] = None
+            vis_inputs[0]["dilated_obstacle_map"] = dilated_obstacle_map
+            vis_inputs[0]["semantic_map_config"] = self.config.AGENT.SEMANTIC_MAP
+            vis_inputs[0]["instance_memory"] = self.instance_memory
+
+        info = {
+            **planner_inputs[0],
+            **vis_inputs[0],
+            "short_term_goal": short_term_goal,
+        }
+
+        return action, info
+
     def _preprocess_obs(self, obs: Observations):
         """Take a home-robot observation, preprocess it to put it into the correct format for the
         semantic map."""

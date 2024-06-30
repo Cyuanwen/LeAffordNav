@@ -203,60 +203,60 @@ map_features 前6个通道是local map, 后6个通道是global map。global_map 
 
 42. compass 计算方式
    ```
-   def get_observation(
-        self, observations, episode, task, *args: Any, **kwargs: Any
-    ):
-        rotation_world_start = self.get_agent_start_rotation(episode, task)
-        rotation_world_agent = self.get_agent_current_rotation(self._sim)
+    def get_observation(
+            self, observations, episode, task, *args: Any, **kwargs: Any
+        ):
+            rotation_world_start = self.get_agent_start_rotation(episode, task)
+            rotation_world_agent = self.get_agent_current_rotation(self._sim)
 
-        if isinstance(rotation_world_agent, quaternion.quaternion):
-            return self._quat_to_xy_heading(
-                rotation_world_agent.inverse() * rotation_world_start
-            )
-        else:
-            raise ValueError("Agent's rotation was not a quaternion")
+            if isinstance(rotation_world_agent, quaternion.quaternion):
+                return self._quat_to_xy_heading(
+                    rotation_world_agent.inverse() * rotation_world_start
+                )
+            else:
+                raise ValueError("Agent's rotation was not a quaternion")
    ```
    似乎相当于 在起始坐标系下的 朝向？ src/third_party/habitat-lab/habitat-lab/habitat/tasks/nav/nav.py 
    具体 agent pos 和 agent rot 计算方式如下
 
    ```
-   @registry.register_sensor(name="RobotStartGPSSensor")
-   class RobotStartGPSSensor(EpisodicGPSSensor):
-      cls_uuid: str = "robot_start_gps"
+    @registry.register_sensor(name="RobotStartGPSSensor")
+    class RobotStartGPSSensor(EpisodicGPSSensor):
+        cls_uuid: str = "robot_start_gps"
 
-      def __init__(self, sim, config: "DictConfig", *args, **kwargs):
-         super().__init__(sim=sim, config=config)
+        def __init__(self, sim, config: "DictConfig", *args, **kwargs):
+            super().__init__(sim=sim, config=config)
 
-      def get_agent_start_position(self, episode, task):
-         return task._robot_start_position
+        def get_agent_start_position(self, episode, task):
+            return task._robot_start_position
 
-      def get_agent_start_rotation(self, episode, task):
-         return quaternion_from_coeff(task._robot_start_rotation)
+        def get_agent_start_rotation(self, episode, task):
+            return quaternion_from_coeff(task._robot_start_rotation)
 
-      def get_agent_current_position(self, sim):
-         return sim.articulated_agent.sim_obj.translation
+        def get_agent_current_position(self, sim):
+            return sim.articulated_agent.sim_obj.translation
    ```
-
+    and
    ```
-      @registry.register_sensor(name="RobotStartCompassSensor")
-class RobotStartCompassSensor(EpisodicCompassSensor):
-    cls_uuid: str = "robot_start_compass"
+        @registry.register_sensor(name="RobotStartCompassSensor")
+    class RobotStartCompassSensor(EpisodicCompassSensor):
+        cls_uuid: str = "robot_start_compass"
 
-    def __init__(self, sim, config: "DictConfig", *args, **kwargs):
-        super().__init__(sim=sim, config=config)
+        def __init__(self, sim, config: "DictConfig", *args, **kwargs):
+            super().__init__(sim=sim, config=config)
 
-    def get_agent_start_rotation(self, episode, task):
-        return quaternion_from_coeff(task._robot_start_rotation)
+        def get_agent_start_rotation(self, episode, task):
+            return quaternion_from_coeff(task._robot_start_rotation)
 
-    def get_agent_current_rotation(self, sim):
-        curr_quat = sim.articulated_agent.sim_obj.rotation
-        curr_rotation = [
-            curr_quat.vector.x,
-            curr_quat.vector.y,
-            curr_quat.vector.z,
-            curr_quat.scalar,
-        ]
-        return quaternion_from_coeff(curr_rotation)
+        def get_agent_current_rotation(self, sim):
+            curr_quat = sim.articulated_agent.sim_obj.rotation
+            curr_rotation = [
+                curr_quat.vector.x,
+                curr_quat.vector.y,
+                curr_quat.vector.z,
+                curr_quat.scalar,
+            ]
+            return quaternion_from_coeff(curr_rotation)
    ```
    相关代码在 src/third_party/habitat-lab/habitat-lab/habitat/tasks/rearrange/sub_tasks/nav_to_obj_sensors.py 中
 
@@ -285,6 +285,58 @@ src/home_robot/home_robot/mapping/map_utils.py
                     ⬇ y
 
 49. 一开始的时候先向右旋转，右 为顺时针 左 为逆时针
+
+## 各个模块坐标系整理
+1. top_down_map 模块
+⬇ x  ➡ y  theta 为与 x轴正方向的夹角，逆时针为正，顺时针为负
+2. sem_map模块
+sem_map 建图模块 的坐标系应该是和 gps坐标系一致，因为其 pose_delta是由gps坐标变化计算而来
+gps 坐标系：➡ x  ⬆ y
+但是需要注意的是，sem_map计算得到的图是真实障碍物的上下翻转版本，因此所有可视化都需要对地图上下翻转，但是机器人的位置还是按照 gps坐标系来画（只是因为cv2坐标系为 ➡x ⬇ y , 所以作图的时候对agent pose进行了坐标变换）
+3. fmm_planner坐标系
+使用索引作为坐标，即：⬇ x ➡ y ,至于为什么 start 只是简单的 把 sensor pose换算为网格的（x,y）对调？ 因为sem_map是上下翻转的
+fmm planner坐标系对应索引坐标系，如下:
+```
+    start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
+    start_o 为 与 x轴正轴的夹角
+    ...
+    start = [
+    int(start_y * 100.0 / self.map_resolution - gx1),
+    int(start_x * 100.0 / self.map_resolution - gy1),
+    ]
+```
+但是，由于夹角需要与gps坐标系下的夹角对应，因此，夹角的计算看起来有些不同寻常
+```
+angle_st_goal = math.degrees(math.atan2(relative_stg_x, relative_stg_y))
+relative_angle_to_stg = pu.normalize_angle(angle_agent - angle_st_goal)
+```
+此时的夹角是与 ➡ 正方向的夹角 逆时针为正，但是，由于整个地图是现实世界的翻转版本，因此，在地图上算出的正夹角，在现实执行动作时，应该旋转负夹角
+```
+if relative_angle_to_stg > self.turn_angle / 2.0:
+    action = DiscreteNavigationAction.TURN_RIGHT
+```
+**综上所述** 以 obstacle_map作为输入，预测这个地图上的点作为goal点（此时的goal点与gps goal点存在上下翻转的关系），直接调用 fmm_planner规划路径即可；如果使用top_down_map作为输入，其给出的goal点，还需要进行上下翻转才能给fmm进行路径规划
+**经验证，以上坐标系猜想正确**
+
+如果是上面这样，那路径规划似乎有点问题（没有问题）
+start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
+start = [
+    int(start_y * 100.0 / self.map_resolution - gx1),
+    int(start_x * 100.0 / self.map_resolution - gy1),
+]
+然而可视化却是
+curr_x, curr_y, curr_o, gy1, gy2, gx1, gx2 = sensor_pose
+pos = (
+    (curr_x * 100.0 / 5 - gx1)
+    * 480
+    / obstacle_map.shape[0],
+    (obstacle_map.shape[1] - curr_y * 100.0 / 5 + gy1)
+    * 480
+    / obstacle_map.shape[1],
+    np.deg2rad(-curr_o),
+)
+即使存在cv坐标系的区别，x 和 y以及gx和gy的相对变换关系应该是一样的，注意：两者 sensor_pose 赋值方式有些区别
+
 
 ## 各个split数据量大小
 val: 1199

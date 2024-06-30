@@ -7,7 +7,7 @@ defaults:
 
 habitat_baselines:
   verbose: False
-  torch_gpu_id: 0
+  torch_gpu_id: 2
   tensorboard_dir: "/raid/home-robot/gyzp/output/datadump/tb"
   video_dir: "/raid/home-robot/gyzp/output/datadump/video_dir"
   video_fps: 30
