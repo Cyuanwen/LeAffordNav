@@ -33,9 +33,8 @@ TODO
 采数据前，要重新采一遍容器位置数据，现在使用采集容器的结果替代
 大概估计一下运行完所有episode需要的时间
 或许抽一部分 view_point采集数据？
-view_point_position_s采集似乎不对
-
-
+view_point_position_s采集似乎不对?哪里不对？
+统计每个容器的sr，实际部署时，选择哪些sr更高的容器作为目标容器
 
 DONE
 先测试相对位置变化关系，然后将容器位置转换为GPS
@@ -86,6 +85,7 @@ import json
 # cyw/goal_point/data_prepare.py
 from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
 from tqdm import tqdm
+from pathlib import Path
 
 import random
 
@@ -93,8 +93,8 @@ random.seed(1234)
 collect_fail_prob = 0.1 # 当失败时，以0.1的概率采集数据
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
-show_image = True
-debug = True
+show_image = False
+debug = False
 
 def get_semantic_vis(semantic_map, palette=d3_40_colors_rgb):
     semantic_map_vis = Image.new(
@@ -262,7 +262,8 @@ def gen_place_data(
         if f"scene_{scene_id}" not in dataset_file:
             dataset_file.create_group(f"scene_{scene_id}")
 
-    with open(f"./{data_dir}/recep_position.pickle", "rb") as handle:
+    recep_pos_dir = str(Path(data_dir).resolve().parent)
+    with open(f"{recep_pos_dir}/recep_position.pickle", "rb") as handle:
         receptacle_positions = pickle.load(handle)
 
     count_episodes = 0
@@ -303,8 +304,8 @@ def gen_place_data(
             "skill_waypoint_data": []
         }
         recep_vals = receptacle_positions[scene_id][recep]
-        # for pos_pair in tqdm(recep_vals):
-        for pos_pair in tqdm(recep_vals[:1]): #TODO
+        for pos_pair in tqdm(recep_vals):
+        # for pos_pair in tqdm(recep_vals[:1]): #TODO
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
             scene_ep_recep_grp = dataset_file.create_group(f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}") 
@@ -321,8 +322,8 @@ def gen_place_data(
             start_obstacle_map_s = []
             view_point_position_s = [] # 为了验证，在h5py文件里面也加上 view_point_position_s
 
-            # for view_point_position in tqdm(view_point_positions):
-            for view_point_position in tqdm(list(view_point_positions)[:10]): #TODO
+            for view_point_position in tqdm(view_point_positions):
+            # for view_point_position in tqdm(list(view_point_positions)[:10]): #TODO
                 view_point_position = np.array(view_point_position).astype(np.float32)
                 start_position, start_rotation, _ = get_robot_spawns(
                     target_positions=view_point_position[None],
@@ -522,7 +523,7 @@ def gen_place_data(
         dataset_file.flush()
         # if count_episodes == num_episodes:
         #     break
-        if count_episodes == 1:
+        if count_episodes == 2:
             break
     
     # NOTE 一定要放在循环外

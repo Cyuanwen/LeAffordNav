@@ -3,7 +3,7 @@
 '''
 import pickle
 
-pkl_dir = "cyw/datasets/place_dataset/train/rl_agent_place_place_waypoint.pkl"
+pkl_dir = "cyw/datasets/place_dataset/train/rl_agent_place/place_waypoint.pkl"
 
 with open(pkl_dir,"rb") as f:
     pkl_data = pickle.load(f)

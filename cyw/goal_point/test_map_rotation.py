@@ -221,18 +221,18 @@ def visual_waypoint(robo_view_map,agent_coord,relative_position,grid_resolution=
         print(f"agent position is {agent_coord}, relative_position is {relative_position}, coords is {coords}")
     return robo_view_map_new
 
-def visual_waypoint_obs(robo_view_map,agent_coord,relative_position,grid_resolution=[5,5],color=128):
-    '''在地图上可视化waypoint
-        robo_view_map: 机器人视角下的地图，机器人朝向为向右 ➡
-        agent_position: row_index, col_index
-        relative_position: (x,y) x表示向前 ➡，y表示向左 ⬆ 
-    '''
-    robo_view_map_new = robo_view_map.copy()
-    coords = to_grid(relative_position[0],relative_position[1],grid_resolution,agent_coord)
-    coords = [int(coords[0]),int(coords[1])]
-    robo_view_map_new[coords[0]-3:coords[0]+4,coords[1]-3:coords[1]+4] = color
-    # robo_view_map_new[coords[1]-3:coords[1]+4,coords[0]-3:coords[0]+4,:] = color
-    return robo_view_map_new
+# def visual_waypoint_obs(robo_view_map,agent_coord,relative_position,grid_resolution=[5,5],color=128):
+#     '''在地图上可视化waypoint
+#         robo_view_map: 机器人视角下的地图，机器人朝向为向右 ➡
+#         agent_position: row_index, col_index
+#         relative_position: (x,y) x表示向前 ➡，y表示向左 ⬆ 
+#     '''
+#     robo_view_map_new = robo_view_map.copy()
+#     coords = to_grid(relative_position[0],relative_position[1],grid_resolution,agent_coord)
+#     coords = [int(coords[0]),int(coords[1])]
+#     robo_view_map_new[coords[0]-3:coords[0]+4,coords[1]-3:coords[1]+4] = color
+#     # robo_view_map_new[coords[1]-3:coords[1]+4,coords[0]-3:coords[0]+4,:] = color
+#     return robo_view_map_new
 
 if __name__ == "__main__":
     data_dir = "cyw/test_data/top_down_map_data"

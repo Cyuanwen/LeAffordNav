@@ -103,6 +103,13 @@ def to_grid(
     col_index = origin[1] + (realworld_x*100/grid_resolution[1]).astype(int)
     return row_index,col_index
 
+def flipup_grid(row_index,col_index,image_shape):
+    '''将 行坐标和列坐标进行上下翻转（为了与obstacle对齐）
+    '''
+    new_row_index = row_index.copy()
+    new_row_index = image_shape[0]-new_row_index
+    return new_row_index,col_index
+
 def gather_data(data:dict,key_name:str)->list:
     '''聚集字典中的 key_name 指定的数据
     Return: 该数据按顺序排放的 list
@@ -171,7 +178,7 @@ class map_prepare:
         self.semmap_resolution = getattr(agent_config.AGENT.SEMANTIC_MAP,"map_resolution",None)
         assert self.top_down_resolution == self.semmap_resolution, "the map resolution is not the same"
         self.map_bound_meter = 10 # 取机器人多少米范围的地图作为局部地图，单位：m
-        self.gau_sigma = 1 # 高斯平滑的sigma参数
+        self.gau_sigma = 2 # 高斯平滑的sigma参数
         self.grid_bound = int(self.map_bound_meter*100/self.semmap_resolution)
         self.localmap_agent_pose = [self.grid_bound//2,self.grid_bound//2]
         self.map_size = [(self.grid_bound//2)*2,(self.grid_bound//2)*2]
@@ -208,7 +215,6 @@ class map_prepare:
         '''
         # print("debug") # obstacle似乎不是 0，1 是的
         travisible_map = 1-obstacle_map
-        obstacle_map_new = obstacle_map_new * 255
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
         start = [
             int(start_y * 100.0 / 5 - gx1),
@@ -217,8 +223,8 @@ class map_prepare:
         # 把图像顺时针旋转 curr_o 角度
         # rotate_matrix_numbers 要求输入坐标为 row_index col_index
         rotation_origin = [int(start[0]), int(start[1])]
-        obstacle_map_new = maps.rotate_matrix_numbers(
-            matrix=obstacle_map_new,
+        travisible_map = maps.rotate_matrix_numbers(
+            matrix=travisible_map,
             angle=start_o,
             center=rotation_origin
         )
@@ -247,23 +253,26 @@ class map_prepare:
         right_bound_clip = np.clip(right_bound,0,global_shape[1])
         up_bound_clip = np.clip(up_bound,0,global_shape[0])
         low_bound_clip = np.clip(low_bound,0,global_shape[0])
-        left_pad = left_bound - left_bound_clip
+        left_pad = left_bound_clip -left_bound
         right_pad = right_bound - right_bound_clip
-        up_pad = up_bound - up_bound_clip
+        up_pad = up_bound_clip - up_bound
         low_pad = low_bound - low_bound_clip
 
-        local_map = global_map[up_bound_clip:low_bound_clip,left_bound:right_bound]
+        local_map = global_map[up_bound_clip:low_bound_clip,left_bound_clip:right_bound_clip]
         local_map = np.pad(local_map,((up_pad,low_pad),(left_pad,right_pad)),mode='constant')
+        assert list(local_map.shape) == self.map_size,"the map shape is wrong"
         # if debug:
         #     print("debug") #NOTE 测试填充是否正确,经测试，正确
         
         return local_map
     
-    def raletive_pos2localmap_coord(self,relative_position:array,keep_local:bool=True):
+    def raletive_pos2localmap_coord(self,relative_position:array,flipud:bool=True,keep_local:bool=True):
         '''将相对位姿转换为局部地图的坐标
             Argument:
                 relative_position: shape: (n,2) 第一列表示 x，第二列表示 y，其中 (x,y) x表示向前 ➡，y表示向左 ⬆
                 keep_local: 只保留在local map里面的点
+                flipud: 是否将坐标进行上下翻转
+            Return: row_index,col_index
         '''
         row_index,col_index = to_grid(
             realworld_x = relative_position[:,0],
@@ -271,6 +280,8 @@ class map_prepare:
             grid_resolution = [self.semmap_resolution,self.semmap_resolution],
             origin = self.localmap_agent_pose
         )
+        if flipud:
+            row_index,col_index = flipup_grid(row_index,col_index,self.map_size)
         if keep_local:
             # 只保留在局部地图范围内的坐标
             keep_index = (row_index>=0) & (row_index<self.grid_bound) & (col_index>=0) & (col_index<self.grid_bound)
@@ -287,10 +298,11 @@ class map_prepare:
                 target_map:array
         '''
         target_map = np.zeros(self.map_size)
-        target_map[localmap_coord] = 1
+        target_map[localmap_coord[0],localmap_coord[1]] = 1
         # 高斯平滑
         if gau_filter:
             target_map = gaussian_filter(target_map,sigma=self.gau_sigma)
+            target_map = target_map / target_map.max()
         return target_map
         
 
