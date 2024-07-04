@@ -15,8 +15,8 @@ sys.path.append("/raid/home-robot/projects")
 from cyw.goal_point.utils import map_prepare, transform2relative,to_grid
 from habitat_ovmm.utils.config_utils import create_env_config, get_habitat_config, get_omega_config,create_agent_config
 
-debug = True
-save_img = True
+debug = False
+save_img = False
 show_img = True
 img_dir = "cyw/test_data/data_prepare_debug"
 
@@ -143,7 +143,8 @@ class data_prepare:
             episode_id = scene_ep_data["episode_id"]
             recep = scene_ep_data["recep"]
             skill_waypoint_data = scene_ep_data["skill_waypoint_data"]
-            self.processed_dataset.create_group(f"scene_{scene_id}")
+            if not f"scene_{scene_id}" in self.processed_dataset:
+                self.processed_dataset.create_group(f"scene_{scene_id}")
             self.processed_dataset.create_group(f"/scene_{scene_id}/ep_{episode_id}/")
             # for each recep
             for recep_id,skill_waypoint_singile_recep_data in enumerate(skill_waypoint_data):
@@ -214,11 +215,14 @@ class data_prepare:
                         keep_local=False
                     )
                     # get target
-                    target_coord = self.map_prepare.raletive_pos2localmap_coord(
-                        relative_position=np.stack(viewpoint_relative_pos[i]),
-                        flipud=True,
-                        keep_local=True
-                    )
+                    if len(viewpoint_relative_pos[i]) != 0:
+                        target_coord = self.map_prepare.raletive_pos2localmap_coord(
+                            relative_position=np.stack(viewpoint_relative_pos[i]),
+                            flipud=True,
+                            keep_local=True
+                        )
+                    else:
+                        target_coord = None
                     target_map = self.map_prepare.get_target_map(
                         localmap_coord=target_coord, 
                         gau_filter=True

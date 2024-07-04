@@ -79,7 +79,6 @@ from PIL import Image
 from habitat_sim.utils.common import d3_40_colors_rgb
 # from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
 from home_robot.agent.ovmm_agent.ovmm_agent_skill_collect import OpenVocabManipAgent
-from home_robot.agent.ovmm_agent.ovmm_agent_pick_place_collect import OpenVocabManipAgent_pick_place
 from habitat.utils.visualizations import maps
 import json
 # from cyw.goal_point.utils import get_relative_position
@@ -87,16 +86,13 @@ import json
 from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
 from tqdm import tqdm
 from pathlib import Path
-import sys
 
 import random
 
 random.seed(1234)
 collect_fail_prob = 1 # TODO 当失败时，以collect_fail_prob的概率采集数据 
-view_point_num = 10 # 采样 view_point_num 个点来交互
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
-show_map_image = False
 show_image = False
 debug = False
 
@@ -188,28 +184,6 @@ def get_init_scene_episode_count_dict(
         num_episodes += 1
     return count_dict, num_episodes
 
-def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_length=10):
-    """
-    Call in a loop to create terminal progress bar
-    @params:
-        iteration   - Required  : current iteration (Int)
-        total       - Required  : total iterations (Int)
-        prefix      - Optional  : prefix string (Str)
-        suffix      - Optional  : suffix string (Str)
-        decimals    - Optional  : positive number of decimals in percent complete (Int)
-        bar_length  - Optional  : character length of bar (Int)
-    """
-    str_format = "{0:." + str(decimals) + "f}"
-    percents = str_format.format(100 * (iteration / float(total)))
-    filled_length = int(round(bar_length * iteration / float(total)))
-    bar = '█' * filled_length + '-' * (bar_length - filled_length)
-
-    sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percents, '%', suffix)),
-
-    if iteration == total:
-        sys.stdout.write('\n')
-    sys.stdout.flush()
-
 def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
     """Aggregates receptacles position by scene using all episodes"""
 
@@ -257,17 +231,14 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
             )
 
         # # @cyw
-        print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
         if count_episodes == num_episodes:
             break
         # if count_episodes == 1:
         #     break
 
-    print(f"****************save data to ./{data_dir} ****************")
     os.makedirs(f"./{data_dir}", exist_ok=True)
     with open(f"./{data_dir}/recep_position.pickle", "wb") as handle:
         pickle.dump(receptacle_positions, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    print("********save done ***************")
 
 def gen_place_data(
     data_dir: str, 
@@ -351,9 +322,8 @@ def gen_place_data(
             start_obstacle_map_s = []
             view_point_position_s = [] # 为了验证，在h5py文件里面也加上 view_point_position_s
 
-            # for view_point_position in tqdm(view_point_positions):
-            # 采样数据
-            for view_point_position in tqdm(list(view_point_positions)[:10]): #TODO
+            for view_point_position in tqdm(view_point_positions):
+            # for view_point_position in tqdm(list(view_point_positions)[:4]): #TODO
                 view_point_position = np.array(view_point_position).astype(np.float32)
                 start_position, start_rotation, _ = get_robot_spawns(
                     target_positions=view_point_position[None],
@@ -398,31 +368,28 @@ def gen_place_data(
                         manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
                         action,info = convertManualInput(manual_step)
                     observations, done, hab_info = env.apply_action(action, info)
-                    if debug:
-                        print(f"action is {action}")
+                    print(f"action is {action}")
 
                     if debug:
                         print(f"agent_angle is {hab_info['top_down_map']['agent_angle']}")
                         print(f"agent_map_coord is {hab_info['top_down_map']['agent_map_coord']}")
-                        if show_map_image:
-                            print("show and save top_down_map .......")
-                            top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
-                            cv2.imshow("top_down_map",top_down_map)
+                        top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
+                        cv2.imshow("top_down_map",top_down_map)
+                        cv2.waitKey(1)
+                        if "obstacle_map" in info:
+                            init_obstacle_map_vis= visual_init_obstacle_map(
+                                obstacle_map=info['obstacle_map'],
+                                sensor_pose=info['sensor_pose']
+                            )
+                            cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
+                            obstacle_map_vis = visual_obstacle_map(
+                                obstacle_map=np.flipud(info['obstacle_map']),
+                                sensor_pose=info['sensor_pose']
+                            )
+                            cv2.imshow("obstacle_map",obstacle_map_vis)
                             cv2.waitKey(1)
-                            if "obstacle_map" in info:
-                                init_obstacle_map_vis= visual_init_obstacle_map(
-                                    obstacle_map=info['obstacle_map'],
-                                    sensor_pose=info['sensor_pose']
-                                )
-                                cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
-                                obstacle_map_vis = visual_obstacle_map(
-                                    obstacle_map=np.flipud(info['obstacle_map']),
-                                    sensor_pose=info['sensor_pose']
-                                )
-                                cv2.imshow("obstacle_map",obstacle_map_vis)
-                                cv2.waitKey(1)
-                                cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
-                                cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
+                            cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
+                            cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
 
 
                     '''如果look around done, 收集 obstacle map and sensor pos'''
@@ -447,11 +414,10 @@ def gen_place_data(
                             #     print("start_agent_angle is wrong")
                         
                         '''可视化 top down map '''
-                        if "top_down_map" in hab_info and show_map_image:
+                        if "top_down_map" in hab_info and show_image:
                             # # By default, `get_topdown_map_from_sim` returns image
                             # containing 0 if occupied, 1 if unoccupied, and 2 if border
                             top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
-                            print("visulize and save top_down_map.......")
                             cv2.imshow("top_down_map",top_down_map)
                             init_obstacle_map_vis= visual_init_obstacle_map(
                                 obstacle_map=info['obstacle_map'],
@@ -485,7 +451,6 @@ def gen_place_data(
                     #     # 经测试，代码正确
 
                     if show_image:
-                        print("show rgb ......")
                         cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
                         cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
                         semantic_img = get_semantic_vis(observations.semantic)
@@ -554,11 +519,10 @@ def gen_place_data(
             pickle.dump(total_data,f)
 
         dataset_file.flush()
-        print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
-        if count_episodes == num_episodes:
-            break
-        # if count_episodes == 2:
+        # if count_episodes == num_episodes:
         #     break
+        if count_episodes == 2:
+            break
     
     # NOTE 一定要放在循环外
     env.close()
@@ -614,25 +578,7 @@ if __name__ == "__main__":
         default=False,
         help="if true, use manul control"
     )
-    parser.add_argument(
-        "--keep_nonrepeat_episode", # 使用不重复的episode，能大大减小数据收集的时间
-        action="store_true",
-        default=True,
-        help="whether to use non repeat id"
-    )
-    parser.add_argument(
-        "--agent_type",
-        type=str,
-        default="baseline",
-        choices=["baseline", "zxy_pick_place"],
-        help="Agent to evaluate",
-    )
     args = parser.parse_args()
-
-    if args.keep_nonrepeat_episode:
-        with open(os.path.join(args.data_dir,"episode_ids.json"),"r") as f:
-            episode_ids = json.load(f)
-        args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
 
     # get habitat config
     habitat_config, _ = get_habitat_config(
@@ -653,10 +599,7 @@ if __name__ == "__main__":
     agent_config = create_agent_config(env_config, baseline_config)
     device_id = 1
     # agent = PlaceAgent(agent_config, device_id=device_id)
-    if args.agent_type == "baseline":
-        agent = OpenVocabManipAgent(agent_config, device_id=device_id)
-    elif args.agent_type == "zxy_pick_place":
-        agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
+    agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 
     baseline_name = args.baseline_config_path.split("/")[-1].split(".")[0]
     data_dir = os.path.join(args.data_dir,baseline_name)

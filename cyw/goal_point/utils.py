@@ -298,11 +298,12 @@ class map_prepare:
                 target_map:array
         '''
         target_map = np.zeros(self.map_size)
-        target_map[localmap_coord[0],localmap_coord[1]] = 1
-        # 高斯平滑
-        if gau_filter:
-            target_map = gaussian_filter(target_map,sigma=self.gau_sigma)
-            target_map = target_map / target_map.max()
+        if localmap_coord is not None:
+            target_map[localmap_coord[0],localmap_coord[1]] = 1
+            # 高斯平滑
+            if gau_filter:
+                target_map = gaussian_filter(target_map,sigma=self.gau_sigma)
+                target_map = target_map / target_map.max()
         return target_map
         
 

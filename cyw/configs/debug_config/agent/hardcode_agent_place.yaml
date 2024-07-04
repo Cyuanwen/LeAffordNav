@@ -3,7 +3,7 @@ panorama_start: 1       # 1: turn around 360 degrees when starting an episode, 0
 exploration_strategy: seen_frontier  # exploration strategy ("seen_frontier", "been_close_to_frontier")
 radius: 0.05            # robot radius (in meters)
 # fall_wait_steps: 200    # number of steps to wait after the object has been dropped
-fall_wait_steps: 3    # number of steps to wait after the object has been dropped
+fall_wait_steps: 30    # number of steps to wait after the object has been dropped
 store_all_categories: False  # whether to store all semantic categories in the map or just task-relevant ones
 detection_module: detic # the detector to use for perception in case ground_truth_semantics are turned off
 

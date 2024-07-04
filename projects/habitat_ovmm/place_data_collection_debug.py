@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 '''
+debug 用的代码
 place 位姿数据采集代码：（若需要采集pick skill 需要重新初始化环境）
 1. 原本假设gps和pos之间存在坐标旋转以及偏置关系，但测试后，发现随着机器人走动，这个关系似乎不太成立（原因暂不清楚）
 2. 阅读源代码 gps获取过程后，按照源代码的方式将pos转为 gps,需要注意的是 env._reset_stats() 后，agent start postiont 和 start rotation都会变化，坐标系按照stat position 和 start rotation建立，因此也发生变化，因此env._reset_stats() 后要重新调用 env.get_gps() 获取 容器 gps
@@ -79,7 +80,6 @@ from PIL import Image
 from habitat_sim.utils.common import d3_40_colors_rgb
 # from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
 from home_robot.agent.ovmm_agent.ovmm_agent_skill_collect import OpenVocabManipAgent
-from home_robot.agent.ovmm_agent.ovmm_agent_pick_place_collect import OpenVocabManipAgent_pick_place
 from habitat.utils.visualizations import maps
 import json
 # from cyw.goal_point.utils import get_relative_position
@@ -93,12 +93,10 @@ import random
 
 random.seed(1234)
 collect_fail_prob = 1 # TODO 当失败时，以collect_fail_prob的概率采集数据 
-view_point_num = 10 # 采样 view_point_num 个点来交互
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
-show_map_image = False
 show_image = False
-debug = False
+debug = True
 
 def get_semantic_vis(semantic_map, palette=d3_40_colors_rgb):
     semantic_map_vis = Image.new(
@@ -236,6 +234,9 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
             raise ValueError(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
+        if scene_id in receptacle_positions and episode.goal_recep_category in receptacle_positions[scene_id]:
+            # 该场景的该容器已经记录过
+            continue
 
         if not scene_id in receptacle_positions:
             receptacle_positions[scene_id] = {}
@@ -244,9 +245,10 @@ def receptacle_position_aggregate(data_dir: str, env: HabitatOpenVocabManipEnv):
             receptacle_positions[scene_id][episode.goal_recep_category] = []
         for recep in tqdm(episode.candidate_goal_receps):
             recep_position = list(recep.position) # recep数据里面没有朝向
+            # 直接这样写会导致 recep_position 重复
             # 搜索所有waypoint
             view_point_positions = set()
-            for view_point in tqdm(recep.view_points):
+            for view_point in recep.view_points:
                 view_point_position = list(get_agent_state_position(env._dataset.viewpoints_matrix,view_point).position)
                 view_point_positions.add(tuple(view_point_position))
             receptacle_positions[scene_id][episode.goal_recep_category].append(
@@ -338,227 +340,221 @@ def gen_place_data(
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
             scene_ep_recep_grp = dataset_file.create_group(f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}") 
-            view_point_positions = pos_pair["view_point_positions"]
-            skill_waypoint_singile_recep_data = {
-                "recep_position": recep_position,
-                "each_view_point_data":[]
-            }
+        #     view_point_positions = pos_pair["view_point_positions"]
+        #     skill_waypoint_singile_recep_data = {
+        #         "recep_position": recep_position,
+        #         "each_view_point_data":[]
+        #     }
 
-            start_rgb_s = []
-            start_semantic_s = []
-            start_depth_s = []
-            start_top_down_map_s = []
-            start_obstacle_map_s = []
-            view_point_position_s = [] # 为了验证，在h5py文件里面也加上 view_point_position_s
+        #     start_rgb_s = []
+        #     start_semantic_s = []
+        #     start_depth_s = []
+        #     start_top_down_map_s = []
+        #     start_obstacle_map_s = []
+        #     view_point_position_s = [] # 为了验证，在h5py文件里面也加上 view_point_position_s
 
-            # for view_point_position in tqdm(view_point_positions):
-            # 采样数据
-            for view_point_position in tqdm(list(view_point_positions)[:10]): #TODO
-                view_point_position = np.array(view_point_position).astype(np.float32)
-                start_position, start_rotation, _ = get_robot_spawns(
-                    target_positions=view_point_position[None],
-                    rotation_perturbation_noise=0,
-                    distance_threshold=0,
-                    sim=sim,
-                    num_spawn_attempts=100,
-                    physics_stability_steps=100,
-                    orient_positions=recep_position[None],
-                )
-                ''' 初始化 '''
-                # 拿起任务中要放的东西
-                observations = env.pick_up_obj()
-                start_observations = env.set_position(start_position,start_rotation)
-                # start_rot, start_pos = env.get_rot_pos()
-                # 经实验：rot 和 start_rotation 会相差一些，大多数时候，要么成相反数，要么大小相差不多，似乎没有规律？ start_pos 和 start_position 一般是一致的
+        #     for view_point_position in tqdm(view_point_positions):
+        #     # for view_point_position in tqdm(list(view_point_positions)[:4]): #TODO
+        #         view_point_position = np.array(view_point_position).astype(np.float32)
+        #         start_position, start_rotation, _ = get_robot_spawns(
+        #             target_positions=view_point_position[None],
+        #             rotation_perturbation_noise=0,
+        #             distance_threshold=0,
+        #             sim=sim,
+        #             num_spawn_attempts=100,
+        #             physics_stability_steps=100,
+        #             orient_positions=recep_position[None],
+        #         )
+        #         ''' 初始化 '''
+        #         # 拿起任务中要放的东西
+        #         observations = env.pick_up_obj()
+        #         start_observations = env.set_position(start_position,start_rotation)
+        #         # start_rot, start_pos = env.get_rot_pos()
+        #         # 经实验：rot 和 start_rotation 会相差一些，大多数时候，要么成相反数，要么大小相差不多，似乎没有规律？ start_pos 和 start_position 一般是一致的
 
-                start_rotation = env.get_current_rotation()
-                start_position = np.array(env.get_current_position()).astype(np.float32)
+        #         start_rotation = env.get_current_rotation()
+        #         start_position = np.array(env.get_current_position()).astype(np.float32)
                 
-                '''计算容器gps'''
-                relative_recep_gps = env.get_relative_gps(recep_position) # 通过环境转换和通过 自己算的坐标转换的又不一样，但基本是 x 一样，y相差一些，不过似乎 y基本都很小（因为一开始的时候朝向容器了，所以容器基本都在agent正前方
-                # 用于后续验证计算是否正确
-                # if debug:
-                #     cv2.imwrite(f"cyw/test_data/rgb_{relative_recep_gps}.jpg",cv2.cvtColor(start_observations.rgb,cv2.COLOR_BGR2RGB))
+        #         '''计算容器gps'''
+        #         relative_recep_gps = env.get_relative_gps(recep_position) # 通过环境转换和通过 自己算的坐标转换的又不一样，但基本是 x 一样，y相差一些，不过似乎 y基本都很小（因为一开始的时候朝向容器了，所以容器基本都在agent正前方
+        #         # 用于后续验证计算是否正确
+        #         # if debug:
+        #         #     cv2.imwrite(f"cyw/test_data/rgb_{relative_recep_gps}.jpg",cv2.cvtColor(start_observations.rgb,cv2.COLOR_BGR2RGB))
 
 
-                if debug:
-                    observations, done, hab_info = env.apply_action(DiscreteNavigationAction.EMPTY_ACTION)
-                    start_agent_angle = hab_info['top_down_map']['agent_angle']
-                    start_agent_map_coord = hab_info['top_down_map']['agent_map_coord']
-                    print(f"agent_angle is {start_agent_angle}")
-                    print(f"agent_map_coord is {start_agent_map_coord}")                    
+        #         if debug:
+        #             observations, done, hab_info = env.apply_action(DiscreteNavigationAction.EMPTY_ACTION)
+        #             start_agent_angle = hab_info['top_down_map']['agent_angle']
+        #             start_agent_map_coord = hab_info['top_down_map']['agent_map_coord']
+        #             print(f"agent_angle is {start_agent_angle}")
+        #             print(f"agent_map_coord is {start_agent_map_coord}")                    
 
-                '''执行放置动作 '''
-                map_id = 0
-                while not done:
-                    if not manual:
-                        action, info, _ = agent.act(observations)
-                        # sensor_pose: (7,) array denoting global pose (x, y, o) and local map boundaries planning window (gy1, gy2, gx1, gy2)
-                    else:
-                        manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
-                        action,info = convertManualInput(manual_step)
-                    observations, done, hab_info = env.apply_action(action, info)
-                    if debug:
-                        print(f"action is {action}")
+        #         '''执行放置动作 '''
+        #         map_id = 0
+        #         while not done:
+        #             if not manual:
+        #                 action, info, _ = agent.act(observations)
+        #                 # sensor_pose: (7,) array denoting global pose (x, y, o) and local map boundaries planning window (gy1, gy2, gx1, gy2)
+        #             else:
+        #                 manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
+        #                 action,info = convertManualInput(manual_step)
+        #             observations, done, hab_info = env.apply_action(action, info)
+        #             print(f"action is {action}")
 
-                    if debug:
-                        print(f"agent_angle is {hab_info['top_down_map']['agent_angle']}")
-                        print(f"agent_map_coord is {hab_info['top_down_map']['agent_map_coord']}")
-                        if show_map_image:
-                            print("show and save top_down_map .......")
-                            top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
-                            cv2.imshow("top_down_map",top_down_map)
-                            cv2.waitKey(1)
-                            if "obstacle_map" in info:
-                                init_obstacle_map_vis= visual_init_obstacle_map(
-                                    obstacle_map=info['obstacle_map'],
-                                    sensor_pose=info['sensor_pose']
-                                )
-                                cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
-                                obstacle_map_vis = visual_obstacle_map(
-                                    obstacle_map=np.flipud(info['obstacle_map']),
-                                    sensor_pose=info['sensor_pose']
-                                )
-                                cv2.imshow("obstacle_map",obstacle_map_vis)
-                                cv2.waitKey(1)
-                                cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
-                                cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
+        #             if debug:
+        #                 print(f"agent_angle is {hab_info['top_down_map']['agent_angle']}")
+        #                 print(f"agent_map_coord is {hab_info['top_down_map']['agent_map_coord']}")
+        #                 top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
+        #                 cv2.imshow("top_down_map",top_down_map)
+        #                 cv2.waitKey(1)
+        #                 if "obstacle_map" in info:
+        #                     init_obstacle_map_vis= visual_init_obstacle_map(
+        #                         obstacle_map=info['obstacle_map'],
+        #                         sensor_pose=info['sensor_pose']
+        #                     )
+        #                     cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
+        #                     obstacle_map_vis = visual_obstacle_map(
+        #                         obstacle_map=np.flipud(info['obstacle_map']),
+        #                         sensor_pose=info['sensor_pose']
+        #                     )
+        #                     cv2.imshow("obstacle_map",obstacle_map_vis)
+        #                     cv2.waitKey(1)
+        #                     cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
+        #                     cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
 
 
-                    '''如果look around done, 收集 obstacle map and sensor pos'''
-                    if "look_around_done" in info and info["look_around_done"]:
-                        start_obstacle_map=info["obstacle_map"]
-                        start_sensor_pose = info["sensor_pose"]
+        #             '''如果look around done, 收集 obstacle map and sensor pos'''
+        #             if "look_around_done" in info and info["look_around_done"]:
+        #                 start_obstacle_map=info["obstacle_map"]
+        #                 start_sensor_pose = info["sensor_pose"]
 
-                        '''收集top down map 和 姿势'''
-                        start_top_down_map=hab_info['top_down_map']['map']
-                        start_top_down_map_pose = hab_info['top_down_map']['agent_map_coord']
-                        start_top_down_map_rot = hab_info['top_down_map']["agent_angle"]
+        #                 '''收集top down map 和 姿势'''
+        #                 start_top_down_map=hab_info['top_down_map']['map']
+        #                 start_top_down_map_pose = hab_info['top_down_map']['agent_map_coord']
+        #                 start_top_down_map_rot = hab_info['top_down_map']["agent_angle"]
 
-                        if debug:
-                            assert start_top_down_map_pose == start_agent_map_coord,"start_agent_map_coord is wrong"
-                            assert np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01),"start_agent_angle is wrong"
-                            # 不知道为什么角度会有小小的差别
+        #                 if debug:
+        #                     assert start_top_down_map_pose == start_agent_map_coord,"start_agent_map_coord is wrong"
+        #                     assert np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01),"start_agent_angle is wrong"
+        #                     # 不知道为什么角度会有小小的差别
 
-                            # if start_top_down_map_pose != start_agent_map_coord:
-                            #     print("start_agent_map_coord is wrong")
-                            # if not np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01):
-                            #     # 不知道为什么角度会有小小的差别
-                            #     print("start_agent_angle is wrong")
+        #                     # if start_top_down_map_pose != start_agent_map_coord:
+        #                     #     print("start_agent_map_coord is wrong")
+        #                     # if not np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01):
+        #                     #     # 不知道为什么角度会有小小的差别
+        #                     #     print("start_agent_angle is wrong")
                         
-                        '''可视化 top down map '''
-                        if "top_down_map" in hab_info and show_map_image:
-                            # # By default, `get_topdown_map_from_sim` returns image
-                            # containing 0 if occupied, 1 if unoccupied, and 2 if border
-                            top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
-                            print("visulize and save top_down_map.......")
-                            cv2.imshow("top_down_map",top_down_map)
-                            init_obstacle_map_vis= visual_init_obstacle_map(
-                                obstacle_map=info['obstacle_map'],
-                                sensor_pose=info['sensor_pose']
-                            )
-                            cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
-                            obstacle_map_vis = visual_obstacle_map(
-                                obstacle_map=np.flipud(info['obstacle_map']),
-                                sensor_pose=info['sensor_pose']
-                            )
-                            cv2.imshow("obstacle_map",obstacle_map_vis)
-                            cv2.waitKey(1)
-                            cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
-                            cv2.imwrite(f"cyw/test_data/top_down_map/top_down_map_{map_id}.jpg",top_down_map)
-                            cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
-                            # info['sensor_pose']
-                            # # 保存 pickle 文件，以便调试
-                            # with open(f"cyw/test_data/top_down_map_data/top_down_map_{map_id}.pkl","wb") as f:
-                            #     pickle.dump(hab_info["top_down_map"],f)
-                            # with open(f"cyw/test_data/info_data/info_{map_id}.pkl","wb") as f:
-                            #     pickle.dump(info,f)
-                            # map_id += 1
-                            # 测试感觉没啥问题
+        #                 '''可视化 top down map '''
+        #                 if "top_down_map" in hab_info and show_image:
+        #                     # # By default, `get_topdown_map_from_sim` returns image
+        #                     # containing 0 if occupied, 1 if unoccupied, and 2 if border
+        #                     top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
+        #                     cv2.imshow("top_down_map",top_down_map)
+        #                     init_obstacle_map_vis= visual_init_obstacle_map(
+        #                         obstacle_map=info['obstacle_map'],
+        #                         sensor_pose=info['sensor_pose']
+        #                     )
+        #                     cv2.imshow("init_obstacle_map_vis",init_obstacle_map_vis)
+        #                     obstacle_map_vis = visual_obstacle_map(
+        #                         obstacle_map=np.flipud(info['obstacle_map']),
+        #                         sensor_pose=info['sensor_pose']
+        #                     )
+        #                     cv2.imshow("obstacle_map",obstacle_map_vis)
+        #                     cv2.waitKey(1)
+        #                     cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
+        #                     cv2.imwrite(f"cyw/test_data/top_down_map/top_down_map_{map_id}.jpg",top_down_map)
+        #                     cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
+        #                     # info['sensor_pose']
+        #                     # # 保存 pickle 文件，以便调试
+        #                     # with open(f"cyw/test_data/top_down_map_data/top_down_map_{map_id}.pkl","wb") as f:
+        #                     #     pickle.dump(hab_info["top_down_map"],f)
+        #                     # with open(f"cyw/test_data/info_data/info_{map_id}.pkl","wb") as f:
+        #                     #     pickle.dump(info,f)
+        #                     # map_id += 1
+        #                     # 测试感觉没啥问题
 
 
-                    # if debug:
-                    #     # # 测试相对位姿
-                    #     # current_position = env.get_current_position()
-                    #     # robot_relative_start_position = get_relative_position(start_position,start_rotation,current_position)
-                    #     # print(f"robot_relative_start_position is {robot_relative_start_position}")
-                    #     # 经测试，代码正确
+        #             # if debug:
+        #             #     # # 测试相对位姿
+        #             #     # current_position = env.get_current_position()
+        #             #     # robot_relative_start_position = get_relative_position(start_position,start_rotation,current_position)
+        #             #     # print(f"robot_relative_start_position is {robot_relative_start_position}")
+        #             #     # 经测试，代码正确
 
-                    if show_image:
-                        print("show rgb ......")
-                        cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
-                        cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
-                        semantic_img = get_semantic_vis(observations.semantic)
-                        cv2.imshow("semantic",semantic_img)
-                        cv2.waitKey(1)
+        #             if show_image:
+        #                 cv2.imshow("rgb",cv2.cvtColor(observations.rgb,cv2.COLOR_BGR2RGB))
+        #                 cv2.imshow("third_rgb",cv2.cvtColor(observations.third_person_image,cv2.COLOR_BGR2RGB))
+        #                 semantic_img = get_semantic_vis(observations.semantic)
+        #                 cv2.imshow("semantic",semantic_img)
+        #                 cv2.waitKey(1)
                 
-                ''' 执行完毕,获取数据 '''
-                # NOTE 需要在env._reset_stats之前，记录位姿信息
-                end_position = np.array(env.get_current_position()).astype(np.float32)
-                place_success = get_place_success(hab_info)
-                if debug:
-                    print(f"place success is {place_success}")
+        #         ''' 执行完毕,获取数据 '''
+        #         # NOTE 需要在env._reset_stats之前，记录位姿信息
+        #         end_position = np.array(env.get_current_position()).astype(np.float32)
+        #         place_success = get_place_success(hab_info)
+        #         if debug:
+        #             print(f"place success is {place_success}")
                 
-                # 记录数据
-                if place_success:
-                    record = True
-                else:
-                    record = random.random()<collect_fail_prob
-                if record:
-                    print(f"record data ********************")
-                    start_rgb_s.append(start_observations.rgb)
-                    start_depth_s.append(start_observations.depth)
-                    start_semantic_s.append(start_observations.semantic)
-                    start_obstacle_map_s.append(start_obstacle_map)
-                    start_top_down_map_s.append(start_top_down_map)
-                    view_point_position_s.append(view_point_position)
-                    skill_waypoint_singile_recep_data["each_view_point_data"].append(
-                        {
-                            "view_point_position":view_point_position,
-                            "start_position":start_position,
-                            "start_rotation":start_rotation,
-                            "relative_recep_position": relative_recep_gps,
-                            "end_position": end_position,
-                            "place_success": place_success,
-                            "start_sensor_pose": start_sensor_pose, # 在obstacle map里面的位置
-                            "start_top_down_map_pose": start_top_down_map_pose,
-                            "start_top_down_map_rot": start_top_down_map_rot
-                        }
-                    )
+        #         # 记录数据
+        #         if place_success:
+        #             record = True
+        #         else:
+        #             record = random.random()<collect_fail_prob
+        #         if record:
+        #             print(f"record data ********************")
+        #             start_rgb_s.append(start_observations.rgb)
+        #             start_depth_s.append(start_observations.depth)
+        #             start_semantic_s.append(start_observations.semantic)
+        #             start_obstacle_map_s.append(start_obstacle_map)
+        #             start_top_down_map_s.append(start_top_down_map)
+        #             view_point_position_s.append(view_point_position)
+        #             skill_waypoint_singile_recep_data["each_view_point_data"].append(
+        #                 {
+        #                     "view_point_position":view_point_position,
+        #                     "start_position":start_position,
+        #                     "start_rotation":start_rotation,
+        #                     "relative_recep_position": relative_recep_gps,
+        #                     "end_position": end_position,
+        #                     "place_success": place_success,
+        #                     "start_sensor_pose": start_sensor_pose, # 在obstacle map里面的位置
+        #                     "start_top_down_map_pose": start_top_down_map_pose,
+        #                     "start_top_down_map_rot": start_top_down_map_rot
+        #                 }
+        #             )
 
-                agent.reset()
-                env._reset_stats() # 重置一些状态，但不跳转到下一个episode
-                # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标（现在记录绝对坐标，因此不需要重新计算）
-                done = False
+        #         agent.reset()
+        #         env._reset_stats() # 重置一些状态，但不跳转到下一个episode
+        #         # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标（现在记录绝对坐标，因此不需要重新计算）
+        #         done = False
 
-            '''运行完一个episode 的一个recep位置，保存数据'''
-            scene_ep_data["skill_waypoint_data"].append(skill_waypoint_singile_recep_data)
+        #     '''运行完一个episode 的一个recep位置，保存数据'''
+        #     scene_ep_data["skill_waypoint_data"].append(skill_waypoint_singile_recep_data)
 
-            start_rgb_s = np.concatenate(start_rgb_s,axis=0)
-            start_semantic_s = np.concatenate(start_semantic_s,axis=0)
-            start_depth_s = np.concatenate(start_depth_s,axis=0)
-            start_top_down_map_s = np.concatenate(start_top_down_map_s,axis=0)
-            start_obstacle_map_s = np.concatenate(start_obstacle_map_s,axis=0)
-            view_point_position_s = np.concatenate(view_point_position_s,axis=0)
+        #     start_rgb_s = np.concatenate(start_rgb_s,axis=0)
+        #     start_semantic_s = np.concatenate(start_semantic_s,axis=0)
+        #     start_depth_s = np.concatenate(start_depth_s,axis=0)
+        #     start_top_down_map_s = np.concatenate(start_top_down_map_s,axis=0)
+        #     start_obstacle_map_s = np.concatenate(start_obstacle_map_s,axis=0)
+        #     view_point_position_s = np.concatenate(view_point_position_s,axis=0)
 
-            scene_ep_recep_grp.create_dataset(name="start_rgb_s",data=start_rgb_s)
-            scene_ep_recep_grp.create_dataset(name="start_semantic_s",data=start_semantic_s)
-            scene_ep_recep_grp.create_dataset(name="start_depth_s",data=start_depth_s)
-            scene_ep_recep_grp.create_dataset(name="start_top_down_map_s",data=start_top_down_map_s)
-            scene_ep_recep_grp.create_dataset(name="start_obstacle_map_s",data=start_obstacle_map_s)
-            scene_ep_recep_grp.create_dataset(name="view_point_position_s",data=view_point_position_s)
+        #     scene_ep_recep_grp.create_dataset(name="start_rgb_s",data=start_rgb_s)
+        #     scene_ep_recep_grp.create_dataset(name="start_semantic_s",data=start_semantic_s)
+        #     scene_ep_recep_grp.create_dataset(name="start_depth_s",data=start_depth_s)
+        #     scene_ep_recep_grp.create_dataset(name="start_top_down_map_s",data=start_top_down_map_s)
+        #     scene_ep_recep_grp.create_dataset(name="start_obstacle_map_s",data=start_obstacle_map_s)
+        #     scene_ep_recep_grp.create_dataset(name="view_point_position_s",data=view_point_position_s)
             
-        # 运行完一个episode,保存数据
-        total_data.append(scene_ep_data)
-        with open(os.path.join(data_dir,"place_waypoint.pkl"),"wb") as f:
-            pickle.dump(total_data,f)
+        # # 运行完一个episode,保存数据
+        # total_data.append(scene_ep_data)
+        # with open(os.path.join(data_dir,"place_waypoint.pkl"),"wb") as f:
+        #     pickle.dump(total_data,f)
 
         dataset_file.flush()
         print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
-        if count_episodes == num_episodes:
-            break
-        # if count_episodes == 2:
+        # if count_episodes == num_episodes:
         #     break
+        if count_episodes == 2:
+            break
     
     # NOTE 一定要放在循环外
     env.close()
@@ -620,13 +616,6 @@ if __name__ == "__main__":
         default=True,
         help="whether to use non repeat id"
     )
-    parser.add_argument(
-        "--agent_type",
-        type=str,
-        default="baseline",
-        choices=["baseline", "zxy_pick_place"],
-        help="Agent to evaluate",
-    )
     args = parser.parse_args()
 
     if args.keep_nonrepeat_episode:
@@ -653,10 +642,7 @@ if __name__ == "__main__":
     agent_config = create_agent_config(env_config, baseline_config)
     device_id = 1
     # agent = PlaceAgent(agent_config, device_id=device_id)
-    if args.agent_type == "baseline":
-        agent = OpenVocabManipAgent(agent_config, device_id=device_id)
-    elif args.agent_type == "zxy_pick_place":
-        agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
+    agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 
     baseline_name = args.baseline_config_path.split("/")[-1].split(".")[0]
     data_dir = os.path.join(args.data_dir,baseline_name)
@@ -667,7 +653,7 @@ if __name__ == "__main__":
     # Create an env
     env = create_ovmm_env_fn(env_config)
 
-    # # Aggregate receptacles position by scene using all episodes
+    # # # # Aggregate receptacles position by scene using all episodes
     # receptacle_position_aggregate(args.data_dir, env)
 
     # # Generate images of receptacles by episode
