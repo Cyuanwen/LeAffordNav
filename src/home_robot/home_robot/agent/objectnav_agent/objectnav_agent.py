@@ -83,6 +83,9 @@ class ObjectNavAgent(Agent):
             self.module = DataParallel(self._module, device_ids=[self.device_id])
 
         self.visualize = config.VISUALIZE or config.PRINT_IMAGES
+        # @cyw
+        self.collect_end_recep = getattr(config.AGENT,"collect_end_recep",False)
+
         self.use_dilation_for_stg = config.AGENT.PLANNER.use_dilation_for_stg
         self.semantic_map = Categorical2DSemanticMapState(
             device=self.device,
@@ -303,9 +306,24 @@ class ObjectNavAgent(Agent):
                     vis_inputs[e]["instance_map"] = self.semantic_map.get_instance_map(
                         e
                     )
-
         else:
             vis_inputs = [{} for e in range(self.num_environments)]
+
+        # @cyw 为收集place waypoint，单独将 end recep 一层的数据抽取出来
+        if self.collect_end_recep:
+            other_inputs = [
+                {
+                    "end_recep": self.semantic_map.get_semantic_map_obj(e,end_recep_goal_category[e][0])
+                }
+                for e in range(self.num_environments)
+            ]
+            vis_inputs = [
+                {
+                    **vis_inputs[e],
+                    **other_inputs[e],
+                }
+                for e in range(self.num_environments)
+            ]
         return planner_inputs, vis_inputs
 
     def reset_vectorized(self):

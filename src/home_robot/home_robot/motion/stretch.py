@@ -191,6 +191,13 @@ class HelloStretchIdx:
     HEAD_PAN = 9
     HEAD_TILT = 10
 
+# 绕前后轴的旋转称为滚转。roll
+# 绕侧向轴的旋转称为俯仰。 pitch
+# 绕垂直轴的旋转称为偏航。 yaw
+# https://howthingsfly.si.edu/flight-dynamics/roll-pitch-and-yaw
+# PAN 水平移动 (应该是水平旋转)
+# TILT上下旋转
+# https://www.isarsoft.com/knowledge-hub/ptz
 
 class HelloStretchKinematics(BulletRobotModel):
     """Define motion planning structure for the robot. Exposes kinematics."""

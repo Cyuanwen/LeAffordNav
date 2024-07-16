@@ -3,6 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 '''
+copy from projects/habitat_ovmm/place_data_collection.py
+计算place策略的sr,没有记录数据
+NOTE: 目前还没有修改
+
 place 位姿数据采集代码：（若需要采集pick skill 需要重新初始化环境）
 1. 原本假设gps和pos之间存在坐标旋转以及偏置关系，但测试后，发现随着机器人走动，这个关系似乎不太成立（原因暂不清楚）
 2. 阅读源代码 gps获取过程后，按照源代码的方式将pos转为 gps,需要注意的是 env._reset_stats() 后，agent start postiont 和 start rotation都会变化，坐标系按照stat position 和 start rotation建立，因此也发生变化，因此env._reset_stats() 后要重新调用 env.get_gps() 获取 容器 gps
@@ -30,7 +34,7 @@ pos三个维度中，只有第一维度和第三维度有意义，其中 rot 0�
 经实验，似乎 第一维度表示x，第二维度表示y，rot表示与x轴正半轴的夹角的绝对值（源代码注释是三个维度分别表示x,y,z）
 
 TODO
-确保place_策略
+采数据前，要重新采一遍容器位置数据，现在使用采集容器的结果替代(val已经全部采集)
 大概估计一下运行完所有episode需要的时间
 或许抽一部分 view_point采集数据？
 view_point_position_s采集似乎不对?哪里不对？
@@ -47,12 +51,10 @@ DONE
 每种放置策略的数据单独放置，每个episode数据单独放置文件夹
 先环顾四周，建立语义地图
 rgb,depth,semantic可以用h5py存储，其它的可以用pickle存储
-采数据前，要重新采一遍容器位置数据，现在使用采集容器的结果替代(train,val已经全部采集)
-
 
 NOTE 
 既然能看到容器，relative recep position 容器一定在agent前面，所以x一定为正
-agent 的 fall_wait步数要为 200 ，否则东西没落到recep上，判定也是失败
+agent 的 fall_wait步数要为 200 ，否则东西没落到recep上，判定也是失败 
 '''
 import argparse
 import os
@@ -97,7 +99,7 @@ import random
 
 random.seed(1234)
 collect_fail_prob = 1 # TODO 当失败时，以collect_fail_prob的概率采集数据 
-view_point_num = 10 # 采样 view_point_num 个点来交互
+view_point_num = 2 # 采样 view_point_num 个点来交互
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
 show_map_image = False
@@ -337,8 +339,8 @@ def gen_place_data(
             "skill_waypoint_data": []
         }
         recep_vals = receptacle_positions[scene_id][recep]
-        for pos_pair in tqdm(recep_vals):
-        # for pos_pair in tqdm(recep_vals[:1]): #TODO
+        # for pos_pair in tqdm(recep_vals):
+        for pos_pair in tqdm(recep_vals[2:]): #TODO
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
             scene_ep_recep_grp = dataset_file.create_group(f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}") 
@@ -354,14 +356,13 @@ def gen_place_data(
             start_top_down_map_s = []
             start_obstacle_map_s = []
             view_point_position_s = [] # 为了验证，在h5py文件里面也加上 view_point_position_s
-            end_recep_map_s = []
 
             # for view_point_position in tqdm(view_point_positions):
             # 采样数据
             view_point_positions_list = list(view_point_positions)
             if len(view_point_positions_list) > view_point_num:
                 view_point_positions_list = random.sample(view_point_positions_list,view_point_num)
-            # for view_point_position in tqdm(list(view_point_positions)[:2]): #TODO
+            # for view_point_position in tqdm(list(view_point_positions)[:10]): #TODO
             for view_point_position in tqdm(view_point_positions_list):
                 view_point_position = np.array(view_point_position).astype(np.float32)
                 start_position, start_rotation, _ = get_robot_spawns(
@@ -417,6 +418,7 @@ def gen_place_data(
                             print("show and save top_down_map .......")
                             top_down_map = draw_top_down_map(hab_info, observations.rgb.shape[0])
                             cv2.imshow("top_down_map",top_down_map)
+                            cv2.waitKey(1)
                             if "obstacle_map" in info:
                                 init_obstacle_map_vis= visual_init_obstacle_map(
                                     obstacle_map=info['obstacle_map'],
@@ -431,17 +433,12 @@ def gen_place_data(
                                 cv2.waitKey(1)
                                 cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
                                 cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
-                            if 'end_recep' in info:
-                                end_recep_vis = np.copy(info['end_recep'])*255
-                                cv2.imshow("end_recep_vis",end_recep_vis)
-                                cv2.waitKey(1)
-                                cv2.imwrite(f"cyw/test_data/end_recep/end_recep_{map_id}.jpg",end_recep_vis)
+
 
                     '''如果look around done, 收集 obstacle map and sensor pos'''
                     if "look_around_done" in info and info["look_around_done"]:
                         start_obstacle_map=info["obstacle_map"]
                         start_sensor_pose = info["sensor_pose"]
-                        end_recep_map = info['end_recep']
 
                         '''收集top down map 和 姿势'''
                         start_top_down_map=hab_info['top_down_map']['map']
@@ -449,8 +446,8 @@ def gen_place_data(
                         start_top_down_map_rot = hab_info['top_down_map']["agent_angle"]
 
                         if debug:
-                            assert start_top_down_map_pose == start_agent_map_coord,f"start_agent_map_coord is wrong, episode is {episode}, recep_position is {recep_position}, view_point_position is {view_point_position}"
-                            assert np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01),f"start_agent_angle is wrong, episode is {episode}, recep_position is {recep_position}, view_point_position is {view_point_position}"
+                            assert start_top_down_map_pose == start_agent_map_coord,"start_agent_map_coord is wrong"
+                            assert np.allclose(start_top_down_map_rot,start_agent_angle,rtol=0.01),"start_agent_angle is wrong"
                             # 不知道为什么角度会有小小的差别
 
                             # if start_top_down_map_pose != start_agent_map_coord:
@@ -476,14 +473,10 @@ def gen_place_data(
                                 sensor_pose=info['sensor_pose']
                             )
                             cv2.imshow("obstacle_map",obstacle_map_vis)
-                            end_recep_vis = np.copy(end_recep_map)*255
-                            cv2.imshow("end_recep_vis",end_recep_vis)
                             cv2.waitKey(1)
                             cv2.imwrite(f"cyw/test_data/init_obstacle_map/init_obstacle_map_{map_id}.jpg",init_obstacle_map_vis)
                             cv2.imwrite(f"cyw/test_data/top_down_map/top_down_map_{map_id}.jpg",top_down_map)
                             cv2.imwrite(f"cyw/test_data/obstacle_map/obstacle_map_{map_id}.jpg",obstacle_map_vis)
-                            cv2.imwrite(f"cyw/test_data/end_recep/end_recep_map_{map_id}.jpg",end_recep_vis)
-                            
                             # info['sensor_pose']
                             # # 保存 pickle 文件，以便调试
                             # with open(f"cyw/test_data/top_down_map_data/top_down_map_{map_id}.pkl","wb") as f:
@@ -531,7 +524,6 @@ def gen_place_data(
                     start_obstacle_map_s.append(start_obstacle_map)
                     start_top_down_map_s.append(start_top_down_map)
                     view_point_position_s.append(view_point_position)
-                    end_recep_map_s.append(end_recep_map)
                     skill_waypoint_singile_recep_data["each_view_point_data"].append(
                         {
                             "view_point_position":view_point_position,
@@ -554,13 +546,12 @@ def gen_place_data(
             '''运行完一个episode 的一个recep位置，保存数据'''
             scene_ep_data["skill_waypoint_data"].append(skill_waypoint_singile_recep_data)
 
-            start_rgb_s = np.stack(start_rgb_s,axis=0)
-            start_semantic_s = np.stack(start_semantic_s,axis=0)
-            start_depth_s = np.stack(start_depth_s,axis=0)
-            start_top_down_map_s = np.stack(start_top_down_map_s,axis=0)
-            start_obstacle_map_s = np.stack(start_obstacle_map_s,axis=0)
-            view_point_position_s = np.stack(view_point_position_s,axis=0)
-            end_recep_map_s = np.stack(end_recep_map_s,axis=0)
+            start_rgb_s = np.concatenate(start_rgb_s,axis=0)
+            start_semantic_s = np.concatenate(start_semantic_s,axis=0)
+            start_depth_s = np.concatenate(start_depth_s,axis=0)
+            start_top_down_map_s = np.concatenate(start_top_down_map_s,axis=0)
+            start_obstacle_map_s = np.concatenate(start_obstacle_map_s,axis=0)
+            view_point_position_s = np.concatenate(view_point_position_s,axis=0)
 
             scene_ep_recep_grp.create_dataset(name="start_rgb_s",data=start_rgb_s)
             scene_ep_recep_grp.create_dataset(name="start_semantic_s",data=start_semantic_s)
@@ -568,9 +559,6 @@ def gen_place_data(
             scene_ep_recep_grp.create_dataset(name="start_top_down_map_s",data=start_top_down_map_s)
             scene_ep_recep_grp.create_dataset(name="start_obstacle_map_s",data=start_obstacle_map_s)
             scene_ep_recep_grp.create_dataset(name="view_point_position_s",data=view_point_position_s)
-            scene_ep_recep_grp.create_dataset(name='end_recep_map_s',
-            data=end_recep_map_s
-            )
             
         # 运行完一个episode,保存数据
         total_data.append(scene_ep_data)
@@ -579,10 +567,10 @@ def gen_place_data(
 
         dataset_file.flush()
         print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
-        # if count_episodes == num_episodes:
-        #     break
-        if count_episodes == 2: # TODO
+        if count_episodes == num_episodes:
             break
+        # if count_episodes == 2:
+        #     break
     
     # NOTE 一定要放在循环外
     env.close()
@@ -695,7 +683,7 @@ if __name__ == "__main__":
     # receptacle_position_aggregate(args.data_dir, env)
 
     # # Generate images of receptacles by episode
-    gen_place_data(data_dir,dataset_file, env, agent, args.manual)
+    gen_place_data(data_dir,dataset_file, env, agent,args.manual)
 
 
     # Close the h5py file

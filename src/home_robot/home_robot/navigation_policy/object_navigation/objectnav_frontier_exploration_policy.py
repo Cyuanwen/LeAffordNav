@@ -345,7 +345,7 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
         : near_room_range: 多大范围内认为是 near room
         : near_obj_range: 多大范围内认为是 near object
         return: psl_frontier_map or None 
-        不出意外 map_feature 的各层代表的意思：local_non_sem, global_non_sem, ., goal_object, recep, room, other
+        不出意外 map_feature 的各层代表的意思：local_non_sem (obstacle or explored), global_non_sem, ., goal_object, recep, room, other
         '''
         self.psl_frontier_agent.set_target(int(recep_category))
         frontier_locations = torch.stack([torch.where(frontier_map[0])[0], torch.where(frontier_map[0])[1]]).T

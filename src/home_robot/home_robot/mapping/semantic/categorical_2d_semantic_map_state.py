@@ -186,6 +186,12 @@ class Categorical2DSemanticMapState:
             MC.NON_SEM_CHANNELS : MC.NON_SEM_CHANNELS + self.num_sem_categories, :, :
         ].argmax(0)
         return semantic_map
+    
+    # @cyw
+    def get_semantic_map_obj(self,e,obj_idx) -> np.ndarray:
+        """ get the occupy map of object"""
+        return np.copy(self.local_map[e, MC.NON_SEM_CHANNELS+obj_idx, :, :].cpu().float().numpy())
+
 
     def get_instance_map(self, e) -> np.ndarray:
         instance_map = self.local_map[e].cpu().float().numpy()

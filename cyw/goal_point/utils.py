@@ -27,6 +27,7 @@ import cv2
 from habitat.utils.visualizations import maps
 from typing import Optional, Tuple
 from scipy.ndimage import gaussian_filter
+import home_robot.utils.pose as pu
 
 debug = True
 visualize = True
@@ -177,7 +178,7 @@ class map_prepare:
         self.top_down_resolution = self.top_down_resolution * 100
         self.semmap_resolution = getattr(agent_config.AGENT.SEMANTIC_MAP,"map_resolution",None)
         assert self.top_down_resolution == self.semmap_resolution, "the map resolution is not the same"
-        self.map_bound_meter = 10 # 取机器人多少米范围的地图作为局部地图，单位：m
+        self.map_bound_meter = 6 # 取机器人多少米范围的地图作为局部地图，单位：m
         self.gau_sigma = 2 # 高斯平滑的sigma参数
         self.grid_bound = int(self.map_bound_meter*100/self.semmap_resolution)
         self.localmap_agent_pose = [self.grid_bound//2,self.grid_bound//2]
@@ -214,12 +215,14 @@ class map_prepare:
                 map_agent_pos: 机器人在旋转后的地图的位置
         '''
         # print("debug") # obstacle似乎不是 0，1 是的
-        travisible_map = 1-obstacle_map
+        # travisible_map = 1-obstacle_map
+        travisible_map = np.copy(obstacle_map) # NOTE 这里没有进行取反操作
         start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
         start = [
             int(start_y * 100.0 / 5 - gx1),
             int(start_x * 100.0 / 5 - gy1),
         ]
+        start = pu.threshold_poses(start, obstacle_map.shape)
         # 把图像顺时针旋转 curr_o 角度
         # rotate_matrix_numbers 要求输入坐标为 row_index col_index
         rotation_origin = [int(start[0]), int(start[1])]

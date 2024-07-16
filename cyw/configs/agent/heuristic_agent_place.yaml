@@ -179,6 +179,6 @@ PLANNER:
   map_downsample_factor: 1            # optional downsampling of traversible and goal map before fmm distance call (1 for no downsampling, 2 for halving resolution)
   map_update_frequency: 1             # compute fmm distance map every n steps 
   discrete_actions: True         # discrete motion planner output space or not
-  # verbose: False                 # display debug information during planning
-  verbose: True
+  verbose: False                 # display debug information during planning
+  # verbose: True
   planner_type: "old"             # ("old", "new") where "new" is the latest one being used for spot in real world

@@ -2,6 +2,10 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+'''
+copy from src/home_robot/home_robot/manipulation/heuristic_pick_policy.py
+将开环执行改为闭环执行
+'''
 import random
 from typing import Dict, Optional
 
@@ -24,9 +28,11 @@ from home_robot.utils.rotation import get_angle_to_pos
 RETRACTED_ARM_APPROX_LENGTH = 0.15
 HARDCODED_ARM_EXTENSION_OFFSET = 0.15
 HARDCODED_YAW_OFFSET = 0.25
+# @cyw
+go_to_place_add_step = 2 # 原本一步完成，现在多加 go_to_place_add_step 步，共需 go_to_place_add_step+1 步
 
 
-class HeuristicPlacePolicy(nn.Module):
+class HeuristicPlacePolicy_cyw(nn.Module):
     """
     Policy to place object on end receptacle using depth and point-cloud-based heuristics. Objects will be placed nearby, on top of the surface, based on point cloud data. Requires segmentation to work properly.
     """
@@ -60,9 +66,16 @@ class HeuristicPlacePolicy(nn.Module):
         self.erosion_kernel = np.ones((5, 5), np.uint8)
         self.placement_drop_distance = placement_drop_distance
         self.verbose = verbose
+        # @cyw
+        self.delta_arm_ext = None
+        self.delta_arm_lift = None
+        self.delta_gripper_yaw = None
 
     def reset(self):
         self.timestep = 0
+        self.delta_arm_ext = None
+        self.delta_arm_lift = None
+        self.delta_gripper_yaw = None
 
     def get_target_point_cloud_base_coords(
         self,
@@ -360,13 +373,22 @@ class HeuristicPlacePolicy(nn.Module):
                 )
                 self.fall_wait_steps = 0
                 self.t_go_to_top = self.total_turn_and_forward_steps + 1
-                self.t_go_to_place = self.total_turn_and_forward_steps + 2
-                self.t_release_object = self.total_turn_and_forward_steps + 3
-                self.t_lift_arm = self.total_turn_and_forward_steps + 4
-                self.t_retract_arm = self.total_turn_and_forward_steps + 5
+                self.t_go_to_place = self.total_turn_and_forward_steps + 2 # move to the top of place point
+                # self.t_release_object = self.total_turn_and_forward_steps + 3
+                # self.t_lift_arm = self.total_turn_and_forward_steps + 4
+                # self.t_retract_arm = self.total_turn_and_forward_steps + 5
+                # self.t_extend_arm = -1
+                # self.t_done_waiting = (
+                #     self.total_turn_and_forward_steps + 5 + self.fall_wait_steps
+                # )
+
+                # @cyw
+                self.t_release_object = self.total_turn_and_forward_steps + 3 + go_to_place_add_step
+                self.t_lift_arm = self.total_turn_and_forward_steps + 4 + go_to_place_add_step
+                self.t_retract_arm = self.total_turn_and_forward_steps + 5 + go_to_place_add_step
                 self.t_extend_arm = -1
                 self.t_done_waiting = (
-                    self.total_turn_and_forward_steps + 5 + self.fall_wait_steps
+                    self.total_turn_and_forward_steps + 5 + go_to_place_add_step + self.fall_wait_steps
                 )
                 if self.verbose:
                     print("-" * 20)
@@ -403,24 +425,24 @@ class HeuristicPlacePolicy(nn.Module):
             current_arm_lift = obs.joint[4]
             delta_arm_lift = placement_height - current_arm_lift
             # # @cyw
-            # delta_arm_lift = delta_arm_lift-0.2
+            delta_arm_lift = delta_arm_lift-0.2
 
             current_arm_ext = obs.joint[:4].sum()
-            delta_arm_ext = (
-                placement_extension
-                - STRETCH_STANDOFF_DISTANCE
-                - RETRACTED_ARM_APPROX_LENGTH
-                - current_arm_ext
-                + HARDCODED_ARM_EXTENSION_OFFSET
-            )
-            # # # # @cyw
             # delta_arm_ext = (
             #     placement_extension
-            #     # - STRETCH_STANDOFF_DISTANCE
+            #     - STRETCH_STANDOFF_DISTANCE
             #     - RETRACTED_ARM_APPROX_LENGTH
             #     - current_arm_ext
             #     + HARDCODED_ARM_EXTENSION_OFFSET
             # )
+            # # # @cyw
+            delta_arm_ext = (
+                placement_extension
+                # - STRETCH_STANDOFF_DISTANCE
+                - RETRACTED_ARM_APPROX_LENGTH
+                - current_arm_ext
+                + HARDCODED_ARM_EXTENSION_OFFSET
+            )
             # # 修改 extension 和 lift后,能够放上去,但是会发生碰撞,所以根本上还是这个点计算得不对?
             center_voxel_trans = np.array(
                 [
@@ -436,16 +458,49 @@ class HeuristicPlacePolicy(nn.Module):
             if self.verbose:
                 print("[Placement] Delta arm extension:", delta_arm_ext)
                 print("[Placement] Delta arm lift:", delta_arm_lift)
+            # joints = np.array(
+            #     [delta_arm_ext]
+            #     + [0] * 3
+            #     + [delta_arm_lift]
+            #     + [delta_gripper_yaw]
+            #     + [0] * 4
+            # )
+            # @cyw 分三步走
+            self.delta_arm_ext = delta_arm_ext
+            self.delta_arm_lift = delta_arm_lift
+            self.delta_gripper_yaw = delta_gripper_yaw
             joints = np.array(
-                [delta_arm_ext]
+                [0]
                 + [0] * 3
-                + [delta_arm_lift]
+                + [0]
                 + [delta_gripper_yaw]
                 + [0] * 4
             )
+            self.delta_gripper_yaw = None
             # @cyw
-            joints = self._look_at_ee(joints)
+            # joints = self._look_at_ee(joints)
             action = ContinuousFullBodyAction(joints)
+        # @cyw
+        elif self.timestep == self.t_go_to_place + 1:
+            joints = np.array(
+                [self.delta_arm_ext]
+                + [0] * 3
+                + [0]
+                + [0]
+                + [0] * 4
+            )
+            action = ContinuousFullBodyAction(joints)
+            self.delta_arm_ext = None
+        elif self.timestep == self.t_go_to_place + 2:
+            joints = np.array(
+                [0]
+                + [0] * 3
+                + [self.delta_arm_lift]
+                + [0]
+                + [0] * 4
+            )
+            action = ContinuousFullBodyAction(joints)
+            self.delta_arm_lift = None
         elif self.timestep == self.t_release_object:
             # desnap to drop the object
             action = DiscreteNavigationAction.DESNAP_OBJECT
@@ -490,7 +545,7 @@ class HeuristicPlacePolicy(nn.Module):
         lift_delta = self.max_arm_height - current_arm_lift
         joints[4] = lift_delta
         # @cyw
-        joints = self._look_at_ee(joints)
+        # joints = self._look_at_ee(joints)
         action = ContinuousFullBodyAction(joints)
         return action
 
@@ -516,6 +571,6 @@ class HeuristicPlacePolicy(nn.Module):
         joints[0] = arm_delta
         joints[4] = lift_delta
         # @cyw
-        joints = self._look_at_ee(joints)
+        # joints = self._look_at_ee(joints)
         action = ContinuousFullBodyAction(joints)
         return action

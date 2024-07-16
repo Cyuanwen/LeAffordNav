@@ -417,3 +417,110 @@ start = [
 ## 环境配置版本说明
 cyw/ovmm_env_20240513.yml 为配置yolo-world模型前的环境配置
 
+## place 策略
+鑫垚的放置策略:按照固定动作执行
+```
+        self.placing_actions = [
+            DiscreteNavigationAction.MOVE_FORWARD,
+            DiscreteNavigationAction.MANIPULATION_MODE,
+            # ContinuousFullBodyAction([0,0,0,0,0,0,0,0,0,0], [0, -0.2, (6*3.14)/180.0]),
+            ContinuousFullBodyAction([1,0,0,0,1,0,0,0,0,0], [0, 0, 0]),
+            DiscreteNavigationAction.DESNAP_OBJECT,
+            DiscreteNavigationAction.STOP
+        ]
+```
+baseline 启发式策略
+```
+        if self.timestep < self.initial_orient_num_turns:
+            if self.orient_turn_direction == -1:
+                action = DiscreteNavigationAction.TURN_RIGHT
+            if self.orient_turn_direction == +1:
+                action = DiscreteNavigationAction.TURN_LEFT
+            if self.verbose:
+                print("[Placement] Turning to orient towards object")
+        elif self.timestep < self.total_turn_and_forward_steps:
+            if self.verbose:
+                print("[Placement] Moving forward")
+            action = DiscreteNavigationAction.MOVE_FORWARD
+        elif self.timestep == self.total_turn_and_forward_steps:
+            action = DiscreteNavigationAction.MANIPULATION_MODE
+        elif self.timestep == self.t_go_to_top:
+            # We should move the arm back and retract it to make sure it does not hit anything as it moves towards the target position
+            action = self._retract(obs)
+        elif self.timestep == self.t_go_to_place:
+            if self.verbose:
+                print("[Placement] Move arm into position")
+            placement_height, placement_extension = (
+                self.placement_voxel[2],
+                self.placement_voxel[1],
+            )
+
+            current_arm_lift = obs.joint[4]
+            delta_arm_lift = placement_height - current_arm_lift
+
+            current_arm_ext = obs.joint[:4].sum()
+            delta_arm_ext = (
+                placement_extension
+                - STRETCH_STANDOFF_DISTANCE
+                - RETRACTED_ARM_APPROX_LENGTH
+                - current_arm_ext
+                + HARDCODED_ARM_EXTENSION_OFFSET
+            )
+            center_voxel_trans = np.array(
+                [
+                    self.placement_voxel[1],
+                    self.placement_voxel[2],
+                    self.placement_voxel[0],
+                ]
+            )
+            delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans))
+
+            delta_gripper_yaw = delta_heading / 90 - HARDCODED_YAW_OFFSET
+
+            if self.verbose:
+                print("[Placement] Delta arm extension:", delta_arm_ext)
+                print("[Placement] Delta arm lift:", delta_arm_lift)
+            joints = np.array(
+                [delta_arm_ext]
+                + [0] * 3
+                + [delta_arm_lift]
+                + [delta_gripper_yaw]
+                + [0] * 4
+            )
+            joints = self._look_at_ee(joints)
+            action = ContinuousFullBodyAction(joints)
+        elif self.timestep == self.t_release_object:
+            # desnap to drop the object
+            action = DiscreteNavigationAction.DESNAP_OBJECT
+        elif self.timestep == self.t_lift_arm:
+            action = self._lift(obs)
+        elif self.timestep == self.t_retract_arm:
+            action = self._retract(obs)
+        elif self.timestep == self.t_extend_arm:
+            action = DiscreteNavigationAction.EXTEND_ARM
+        elif self.timestep <= self.t_done_waiting:
+            if self.verbose:
+                print("[Placement] Empty action")  # allow the object to come to rest
+            action = DiscreteNavigationAction.EMPTY_ACTION
+        else:
+            if self.verbose:
+                print("[Placement] Stopping")
+            action = DiscreteNavigationAction.STOP
+
+```
+也是按照一套固定动作,但是这些量都是计算来的(然而交互点是一开始就选好了的)
+```
+            joints = np.array(
+                [delta_arm_ext]
+                + [0] * 3
+                + [delta_arm_lift]
+                + [delta_gripper_yaw]
+                + [0] * 4
+            )
+            joints = self._look_at_ee(joints)
+            action = ContinuousFullBodyAction(joints)
+```
+zxy的
+```
+ ContinuousFullBodyAction([1,0,0,0,1,0,0,0,0,0], [0, 0, 0]),
+```
