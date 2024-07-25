@@ -1,3 +1,9 @@
+'''
+TODO 为什么两次数据收集的结果不一样？！
+难道因为放置点是随机的，即使站在同样的位置，成功与否还是有些随机因素？
+对recep position聚类，把同一个recep的数据合并起来，不然现在存在同样输入，不同输出的情况
+map距离设置为6米似乎太小了，很多可交互点都出界了 (已改为8m，但是仍然有部分点出界)
+'''
 import cv2
 import h5py
 import os
@@ -16,8 +22,8 @@ from cyw.goal_point.utils import map_prepare, transform2relative,to_grid
 from habitat_ovmm.utils.config_utils import create_env_config, get_habitat_config, get_omega_config,create_agent_config
 
 debug = True
-save_img = True
-show_img = True
+save_img = False
+show_img = False
 img_dir = "cyw/test_data/data_prepare_debug/heuristic_agent"
 
 def visual_rotated_top_down_map(top_down_map,map_agent_coord,map_agent_rot):
@@ -159,7 +165,6 @@ class data_prepare:
                     keep_success=True,
                     recep_position=recep_position,
                 )
-                # TODO 是否有加快速度的办法？
                 # for each view_point
                 local_top_down_map_s = []
                 local_obstacle_map_s = []
@@ -359,6 +364,7 @@ class data_prepare:
                 '''保存数据'''
                 local_top_down_map_s = np.stack(local_top_down_map_s,axis=0)
                 local_obstacle_map_s = np.stack(local_obstacle_map_s,axis=0)
+                local_end_recep_map_s = np.stack(local_end_recep_map_s,axis=0)
                 target_s = np.stack(target_s,axis=0)
                 recep_coord_s = np.stack(recep_coord_s,axis=0)
                 waypoint_s = np.stack(waypoint_s,axis=0)
@@ -369,9 +375,20 @@ class data_prepare:
                 # scene_ep_recep_grp_processed.create_dataset(name="waypoint_s",data=waypoint_s)
 
                 # TODO
+                if "local_top_down_map_s" in scene_ep_recep_grp:
+                    scene_ep_recep_grp.__delitem__("local_top_down_map_s")
                 scene_ep_recep_grp.create_dataset(name="local_top_down_map_s",data=local_top_down_map_s)
+                if "local_obstacle_map_s" in scene_ep_recep_grp:
+                    scene_ep_recep_grp.__delitem__("local_obstacle_map_s")
                 scene_ep_recep_grp.create_dataset(name="local_obstacle_map_s",data=local_obstacle_map_s)
+                if "local_end_recep_map_s" in scene_ep_recep_grp:
+                    scene_ep_recep_grp.__delitem__("local_end_recep_map_s")
+                scene_ep_recep_grp.create_dataset(name="local_end_recep_map_s", data=local_end_recep_map_s)
+                if "target_s" in scene_ep_recep_grp:
+                    scene_ep_recep_grp.__delitem__("target_s")
                 scene_ep_recep_grp.create_dataset(name="target_s",data=target_s)
+                if "recep_coord_s" in scene_ep_recep_grp:
+                    scene_ep_recep_grp.__delitem__("recep_coord_s")
                 scene_ep_recep_grp.create_dataset(name="recep_coord_s",data=recep_coord_s)
 
                 

@@ -279,6 +279,7 @@ def gen_place_data(
     env: HabitatOpenVocabManipEnv, agent,
     manual=False,
     baseline_name:Optional[str]=None,
+    append:bool=True, #TODO 是否在原本数据上追加数据
 ):
     """Generates images of receptacles by episode for all scenes"""
 
@@ -302,7 +303,11 @@ def gen_place_data(
     count_episodes = 0
     
     # Ideally, we can make it like an iterator to make it feel more intuitive
-    total_data = []
+    if not append:
+        total_data = []
+    else:
+        with open(os.path.join(data_dir,"place_waypoint.pkl"),"rb") as f:
+            total_data = pickle.load(f)
     while True:
         # Get a new episode
         # obs = env.reset()
@@ -322,9 +327,10 @@ def gen_place_data(
             raise ValueError(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
-        dataset_file.create_group(
-            f"/scene_{scene_id}/ep_{episode.episode_id}"
-        )
+        if f"/scene_{scene_id}/ep_{episode.episode_id}" not in dataset_file:
+            dataset_file.create_group(
+                f"/scene_{scene_id}/ep_{episode.episode_id}"
+            )
 
         # for recep in receptacle_positions[scene_id]:
         recep = observations.task_observations['place_recep_name']
@@ -338,10 +344,17 @@ def gen_place_data(
         }
         recep_vals = receptacle_positions[scene_id][recep]
         for pos_pair in tqdm(recep_vals):
-        # for pos_pair in tqdm(recep_vals[:1]): #TODO
+        # for pos_pair in tqdm(recep_vals[1:]): #TODO
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
-            scene_ep_recep_grp = dataset_file.create_group(f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}") 
+            if f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}" not in dataset_file:
+                scene_ep_recep_grp = dataset_file.create_group(f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}")
+            else:
+                scene_ep_recep_grp = dataset_file[f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}"]
+            # 如果已经采集了相关数据，则不再采集
+            if len(scene_ep_recep_grp) != 0:
+                print(f"the data for /scene_{scene_id}/ep_{episode.episode_id}/{recep_position} has done, continue***************")
+                continue
             view_point_positions = pos_pair["view_point_positions"]
             skill_waypoint_singile_recep_data = {
                 "recep_position": recep_position,
@@ -573,16 +586,17 @@ def gen_place_data(
             )
             
         # 运行完一个episode,保存数据
-        total_data.append(scene_ep_data)
+        if not len(scene_ep_data["skill_waypoint_data"])==0:
+            total_data.append(scene_ep_data)
         with open(os.path.join(data_dir,"place_waypoint.pkl"),"wb") as f:
             pickle.dump(total_data,f)
 
         dataset_file.flush()
         print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
-        # if count_episodes == num_episodes:
-        #     break
-        if count_episodes == 2: # TODO
+        if count_episodes == num_episodes:
             break
+        # if count_episodes == 2: # TODO
+        #     break
     
     # NOTE 一定要放在循环外
     env.close()
@@ -686,7 +700,7 @@ if __name__ == "__main__":
     data_dir = os.path.join(args.data_dir,baseline_name)
     os.makedirs(f"./{data_dir}", exist_ok=True)
     # Create h5py files
-    dataset_file = h5py.File(f"./{data_dir}/{args.datafile}.hdf5", "w") # NOTE 这会覆盖掉原本的文件
+    dataset_file = h5py.File(f"./{data_dir}/{args.datafile}.hdf5", "r+") # NOTE 这会覆盖掉原本的文件 #TODO
 
     # Create an env
     env = create_ovmm_env_fn(env_config)

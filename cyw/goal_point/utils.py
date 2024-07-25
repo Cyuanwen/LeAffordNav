@@ -178,7 +178,7 @@ class map_prepare:
         self.top_down_resolution = self.top_down_resolution * 100
         self.semmap_resolution = getattr(agent_config.AGENT.SEMANTIC_MAP,"map_resolution",None)
         assert self.top_down_resolution == self.semmap_resolution, "the map resolution is not the same"
-        self.map_bound_meter = 6 # 取机器人多少米范围的地图作为局部地图，单位：m
+        self.map_bound_meter = 8 # 取机器人多少米范围的地图作为局部地图，单位：m
         self.gau_sigma = 2 # 高斯平滑的sigma参数
         self.grid_bound = int(self.map_bound_meter*100/self.semmap_resolution)
         self.localmap_agent_pose = [self.grid_bound//2,self.grid_bound//2]
@@ -301,12 +301,15 @@ class map_prepare:
                 target_map:array
         '''
         target_map = np.zeros(self.map_size)
-        if localmap_coord is not None:
+        if localmap_coord is not None and len(localmap_coord[0])!=0:
             target_map[localmap_coord[0],localmap_coord[1]] = 1
             # 高斯平滑
             if gau_filter:
                 target_map = gaussian_filter(target_map,sigma=self.gau_sigma)
                 target_map = target_map / target_map.max()
+        # debug
+        if np.isnan(target_map).any():
+            print(f"the target map is nan")
         return target_map
         
 

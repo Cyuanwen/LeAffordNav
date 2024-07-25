@@ -1,21 +1,16 @@
-import pandas as pd
+import pickle
 import json
-import numpy as np
+from pathlib import Path
+import os
 
-assign_idx = "cyw/datasets/place_dataset_v1/train/heuristic_agent_place/assigned_idx.csv"
-ep_idx = "cyw/datasets/place_dataset_v1/train/episode_ids.json"
+# pkl_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place_test/place_waypoint.pkl"
+pkl_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place/place_waypoint.pkl"
+with open(pkl_file,"rb") as f:
+    data = pickle.load(f)
 
-assign_data = pd.read_csv(assign_idx)
-with open(ep_idx,"r") as f:
-    ep_idx = json.load(f)
+pkl_dir = str(Path(pkl_file).resolve().parent)
+json_file =  os.path.join(pkl_dir,"place_waypoint.json")
+with open(json_file,"w") as f:
+    json.dump(data,f,indent=2)
 
-assign_ep_idx = np.array(assign_data['episode_id'])
-assign_ep_idx = np.unique(assign_ep_idx)
-max_episode_idx = 0
-for assign_ep_id in assign_ep_idx:
-    index = ep_idx.index(str(assign_ep_id))
-    if index > max_episode_idx:
-        max_episode_idx = index
-
-max_ep = ep_idx[max_episode_idx]
-print(f"max_episode is {max_ep}")
+print("over")
