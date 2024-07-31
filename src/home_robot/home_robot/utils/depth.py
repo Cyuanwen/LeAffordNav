@@ -33,9 +33,10 @@ def get_camera_matrix(width, height, fov):
     xc = (width - 1.0) / 2.0
     zc = (height - 1.0) / 2.0
     f = (width / 2.0) / np.tan(np.deg2rad(fov / 2.0))
-    camera_matrix = {"xc": xc, "zc": zc, "f": f}
+    camera_matrix = {"xc": xc, "zc": zc, "f": f} 
     camera_matrix = Namespace(**camera_matrix)
     return camera_matrix
+    # 这里的参数都是在像素单位上的值
 
 
 def get_point_cloud_from_z_t(Y_t, camera_matrix, device, scale=1):
@@ -72,6 +73,8 @@ def get_point_cloud_from_z_t(Y_t, camera_matrix, device, scale=1):
     XYZ = torch.stack((X_t, Y_t[:, ::scale, ::scale], Z_t), dim=len(Y_t.size()))
 
     return XYZ
+    # 这块有点不对？grid是在像素单位，但是Y_t是以cm为单位。
+    # 除非一个像素代表1cm?确实是一个像素代表1cm
 
 
 def transform_camera_view_t(XYZ, sensor_height, camera_elevation_degree, device):

@@ -468,7 +468,7 @@ class Categorical2DSemanticMapModule(nn.Module):
         if not isinstance(yaw, torch.Tensor):
             yaw = torch.tensor(yaw)
         depth = obs[:, 3, :, :].float()
-        depth[depth > self.max_depth] = 0
+        depth[depth > self.max_depth] = 0 #@cyw 这样不会导致路径规划失败吗,前方就有障碍物?
 
         point_cloud_t = du.get_point_cloud_from_z_t(
             depth, self.camera_matrix, device, scale=self.du_scale
@@ -1124,6 +1124,8 @@ class Categorical2DSemanticMapModule(nn.Module):
                 e
             ]
         global_pose[e] = local_pose[e] + origins[e]
+        # # @cyw
+        # print("warning: comment off the center")
         mu.recenter_local_map_and_pose_for_env(
             e,
             local_map,

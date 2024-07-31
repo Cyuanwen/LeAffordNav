@@ -109,8 +109,5 @@ if relative_angle_to_stg > self.turn_angle / 2.0:
 ```
 **综上所述** 以 obstacle_map作为输入，预测这个地图上的点作为goal点（此时的goal点与gps goal点存在上下翻转的关系），直接调用 fmm_planner规划路径即可；如果使用top_down_map作为输入，其给出的goal点，还需要进行上下翻转才能给fmm进行路径规划
 
-## TODO
-之后把 prepared_data 代码改一改，把数据直接加到hdf5上面
-
 ## NOTE
 place waypoint文件用于分配id，不能删除

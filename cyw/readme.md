@@ -286,6 +286,9 @@ src/home_robot/home_robot/mapping/map_utils.py
 
 49. 一开始的时候先向右旋转，右 为顺时针 左 为逆时针
 
+50. recenter_local_map_and_pose_for_env 会移动 obstacle map的中心  src/home_robot/home_robot/mapping/semantic/categorical_2d_semantic_map_module.py
+
+
 ## 各个模块坐标系整理
 1. top_down_map 模块
 ⬇ x  ➡ y  theta 为与 x轴正方向的夹角，逆时针为正，顺时针为负
@@ -374,6 +377,7 @@ obj_goal_idx, start_recep_idx, end_recep_idx = 1, 2, 3
 3. 发现目标后，围着目标转一圈，也合理也不合理，在地图上是围着饶了一圈，但是并没有真正的在视角上饶一圈，没有窥探全貌
 4. 从地图来看，recep是容易发现的，其实frontier并没有发生什么重大作用
 5. 抓东西和放东西，仿真的视角非常不合理，什么都看不见了
+6. fmm导航还是有些问题,隔着一堵墙,距离判断为很近
 
 
 ## 以为的bug
@@ -386,9 +390,6 @@ start = [
 ]
 ```
 又转换为了 local_pose, 所以是对的, 需要注意：语义图给出的local_pose 和 global_pose都是以m为单位，且 y 为第一轴的坐标值，x 为第二轴的坐标值
-
-## TODO tomorro
-采集容器图像，分训练集和验证集
 
 ## done
 1. 跑一下连续环境设置是什么结果？

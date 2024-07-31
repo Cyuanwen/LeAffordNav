@@ -112,6 +112,12 @@ class Categorical2DSemanticMapState:
         self.frontier_map = np.zeros(
             (self.num_environments, self.local_map_size, self.local_map_size)
         )
+        # @cyw
+        self.global_goal_map = np.zeros(
+            (self.num_environments,
+            self.global_map_size,
+            self.global_map_size)
+        )
 
     def init_map_and_pose(self):
         """Initialize global and local map and sensor pose variables."""
@@ -141,7 +147,9 @@ class Categorical2DSemanticMapState:
     def get_frontier_map(self, e: int):
         return self.frontier_map[e]
 
-    def update_global_goal_for_env(self, e: int, goal_map: np.ndarray):
+    # @cyw 原本的函数名为 update_global_goal_for_env, 
+    # 但从实现功能来看,更新的是lobal_goal_map,因此改为update_local_goal_for_env
+    def update_local_goal_for_env(self, e: int, goal_map: np.ndarray):
         """Update global goal for a specific environment with the goal action chosen
         by the policy.
 
@@ -149,7 +157,29 @@ class Categorical2DSemanticMapState:
             goal_map: binary map encoding goal(s) of shape (batch_size, M, M)
         """
         self.goal_map[e] = goal_map
-
+    
+    # @cyw
+    def set_global_goal_for_env(self, e: int, global_goal: Optional[np.ndarray], local_goal: Optional[np.ndarray]):
+        """更新 global goal
+        """
+        assert global_goal is not None or local_goal is not None, "the global goal and local goal are all None"
+        if global_goal is not None:
+            self.global_goal_map[e] = global_goal
+        elif local_goal is not None:
+            self.global_goal_map[e] = np.zeros((self.global_map_size, self.global_map_size))
+            lmb = self.lmb
+            self.global_goal_map[e,lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]] = local_goal
+            # ref:
+            # global_map[e, :, lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]] = local_map[
+            #     e
+            # ]
+    # @cyw
+    def get_goal_from_global(self, e: int):
+        # ref:
+        # local_map[e] = global_map[e, :, lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]]
+        lmb = self.lmb
+        self.goal_map[e] = self.global_goal_map[e, lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]]
+        return self.goal_map[e]
     # ------------------------------------------------------------------
     # Getters
     # ------------------------------------------------------------------

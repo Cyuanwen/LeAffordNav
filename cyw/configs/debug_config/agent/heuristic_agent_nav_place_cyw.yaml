@@ -134,7 +134,7 @@ SKILLS:
 
   PLACE:
     # type: heuristic # "rl" or "heuristic" or "hardcoded"
-    type: heuristic
+    type: heuristic_cyw
     checkpoint_path: data/checkpoints/ovmm_baseline_home_robot_challenge_2023_v0.2/place.pth
     rl_config: projects/habitat_ovmm/configs/agent/skills/place_rl.yaml # with continuous actions
     gym_obs_keys:

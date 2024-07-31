@@ -416,9 +416,9 @@ class ImageNavAgent(Agent):
         for e in range(self.num_environments):
             self.semantic_map.update_frontier_map(e, frontier_map[e][0].cpu().numpy())
             if self.found_goal[e].item():
-                self.semantic_map.update_global_goal_for_env(e, goal_map[e])
+                self.semantic_map.update_local_goal_for_env(e, goal_map[e])
             elif self.timesteps_before_goal_update[e] == 0:
-                self.semantic_map.update_global_goal_for_env(e, goal_map[e])
+                self.semantic_map.update_local_goal_for_env(e, goal_map[e])
                 self.timesteps_before_goal_update[e] = self.goal_update_steps
 
         self.timesteps = [self.timesteps[e] + 1 for e in range(self.num_environments)]

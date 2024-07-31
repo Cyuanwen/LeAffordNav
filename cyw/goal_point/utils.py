@@ -173,8 +173,9 @@ class map_prepare:
         2. 选取旋转后的地图的一个局部
         3. 计算该局部地图各个点的交互概率
     '''
-    def __init__(self,env_config,agent_config) -> None:
-        self.top_down_resolution = getattr(env_config.habitat.task.measurements.top_down_map,"meters_per_pixel",None) # top_down_map 每个网格多少米
+    def __init__(self,agent_config) -> None:
+        # self.top_down_resolution = getattr(env_config.habitat.task.measurements.top_down_map,"meters_per_pixel",None) # top_down_map 每个网格多少米
+        self.top_down_resolution = 0.05
         self.top_down_resolution = self.top_down_resolution * 100
         self.semmap_resolution = getattr(agent_config.AGENT.SEMANTIC_MAP,"map_resolution",None)
         assert self.top_down_resolution == self.semmap_resolution, "the map resolution is not the same"
@@ -311,9 +312,63 @@ class map_prepare:
         if np.isnan(target_map).any():
             print(f"the target map is nan")
         return target_map
-        
-
-
+    
+    '''逆变换'''
+    # 将地图反变换到obstacle map坐标系下
+    def inverse_rotate_map(self,local_map,sensor_pose,obstacle_map_shape):
+        '''
+            1. 将local_map 反向旋转,注意: 这里的local_map不是建图模块给出的local map, 而是经过
+            rotation, ger_local得到的,机器人始终水平朝右的一个小地图
+            2. 粘贴到原本地图大小的空矩阵上
+            从 rotate_obstacle_map 修改而来,很多变量名没有修改
+        '''
+        travisible_map = np.copy(local_map) # NOTE 这里没有进行取反操作
+        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
+        start = [
+            int(start_y * 100.0 / 5 - gx1),
+            int(start_x * 100.0 / 5 - gy1),
+        ]
+        start = pu.threshold_poses(start, obstacle_map_shape)
+        # 把图像顺时针旋转 curr_o 角度
+        # rotate_matrix_numbers 要求输入坐标为 row_index col_index
+        rotation_origin = [int(start[0]), int(start[1])]
+        travisible_map = maps.rotate_matrix_numbers(
+            matrix=travisible_map,
+            angle= - start_o,
+            center=self.localmap_agent_pose,
+        )
+        # 把逆旋转的local map粘到 obstacle_map上
+        map_obs_coord = np.zeros(obstacle_map_shape)
+        row, col = local_map.shape
+        half_row = row//2
+        half_col = col//2
+        obs_bound_u = rotation_origin[0]-half_row
+        if obs_bound_u < 0:
+            local_bound_u = - obs_bound_u
+            obs_bound_u = 0
+        else:
+            local_bound_u = 0
+        obs_bound_b = rotation_origin[0]-half_row+row
+        if obs_bound_b > obstacle_map_shape[0]:
+            local_bound_b = local_map.shape[0] - (obs_bound_b-obstacle_map_shape[0])
+            obs_bound_b = obstacle_map_shape[0]
+        else:
+            local_bound_b = local_map.shape[0]
+        obs_bound_l = rotation_origin[1]-half_col
+        if obs_bound_l< 0:
+            local_bound_l = -obs_bound_l
+            obs_bound_l = 0
+        else:
+            local_bound_l = 0
+        obs_bound_r = rotation_origin[1]-half_col+col
+        if obs_bound_r > obstacle_map_shape[1]:
+            local_bound_r = local_map.shape[1] - (obs_bound_r - obstacle_map_shape[1])
+            obs_bound_r = obstacle_map_shape[1]
+        else:
+            local_bound_r = local_map.shape[1]
+        map_obs_coord[obs_bound_u:obs_bound_b,obs_bound_l:obs_bound_r
+        ] = travisible_map[local_bound_u:local_bound_b,local_bound_l:local_bound_r]
+        return map_obs_coord
 
 
 

@@ -2,12 +2,6 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-'''
-copy from src/home_robot/home_robot/manipulation/heuristic_pick_policy.py
-将开环执行改为闭环执行?
-
-图像如何从世界坐标转到相机坐标：https://blog.csdn.net/chentravelling/article/details/53558096
-'''
 import random
 from typing import Dict, Optional
 
@@ -30,12 +24,9 @@ from home_robot.utils.rotation import get_angle_to_pos
 RETRACTED_ARM_APPROX_LENGTH = 0.15
 HARDCODED_ARM_EXTENSION_OFFSET = 0.15
 HARDCODED_YAW_OFFSET = 0.25
-# @cyw
-go_to_place_add_step = 2 # 原本一步完成，现在多加 go_to_place_add_step 步，共需 go_to_place_add_step+1 步
-debug = True
 
 
-class HeuristicPlacePolicy_cyw(nn.Module):
+class HeuristicPlacePolicy(nn.Module):
     """
     Policy to place object on end receptacle using depth and point-cloud-based heuristics. Objects will be placed nearby, on top of the surface, based on point cloud data. Requires segmentation to work properly.
     """
@@ -69,17 +60,13 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         self.erosion_kernel = np.ones((5, 5), np.uint8)
         self.placement_drop_distance = placement_drop_distance
         self.verbose = verbose
-        # @cyw
-        self.delta_arm_ext = None
-        self.delta_arm_lift = None
-        self.delta_gripper_yaw = None
 
     def reset(self):
-        self.timestep = 0
-        self.delta_arm_ext = None
-        self.delta_arm_lift = None
-        self.delta_gripper_yaw = None
+        self.timestep = 0 #重置时间步长
 
+
+    #将目标点云转换为基础坐标系。
+    #通过摄像机深度图和相机矩阵获取点云数据，并转换为机器人基础坐标。
     def get_target_point_cloud_base_coords(
         self,
         obs: Observations,
@@ -87,10 +74,11 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         arm_reachability_check: bool = False,
     ):
         """Get point cloud coordinates in base frame"""
-        goal_rec_depth = torch.tensor(
+         # 将深度图转换为张量并添加一个维度
+        goal_rec_depth = torch.tensor( 
             obs.depth, device=self.device, dtype=torch.float32
         ).unsqueeze(0)
-
+        # 获取相机矩阵
         camera_matrix = du.get_camera_matrix(
             self.config.ENVIRONMENT.frame_width,
             self.config.ENVIRONMENT.frame_height,
@@ -100,7 +88,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         pcd_camera_coords = du.get_point_cloud_from_z_t(
             goal_rec_depth, camera_matrix, self.device, scale=self.du_scale
         )
-
+         # 获取基础坐标系中的点云
         # get point cloud in base coordinates
         camera_pose = np.expand_dims(obs.camera_pose, 0)
         angles = [tra.euler_from_matrix(p[:3, :3], "rzyx") for p in camera_pose]
@@ -109,13 +97,13 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         # Agent height comes from the environment config
         agent_height = torch.tensor(camera_pose[0, 2, 3], device=self.device)
 
-        # Object point cloud in base coordinates
+        # Object point cloud in base coordinates，将点云从相机坐标系转换到基础坐标系
         pcd_base_coords = du.transform_camera_view_t(
             pcd_camera_coords, agent_height, np.rad2deg(tilt), self.device
         )
-
+        # 如果需要调试可视化，显示点云
         if self.debug_visualize_xyz:
-            # Remove invalid points from the mask
+            # Remove invalid points from the mask，# 从maks中移除无效点
             xyz = (
                 pcd_base_coords[0]
                 .cpu()
@@ -128,8 +116,10 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             show_point_cloud(xyz, rgb, orig=np.zeros(3))
             # show_point_cloud(xyz, rgb, orig=np.zeros(3),save="cyw/test_data/point_cloud")
 
+        # 检查手臂是否能够达到这些点
         # Whether or not I can extend the robot's arm in order to reach each point
         if arm_reachability_check:
+            # 根据体素的Y和Z坐标过滤掉不可达的点（Z是向上）
             # filtering out unreachable points based on Y and Z coordinates of voxels (Z is up)
             height_reachable_mask = (pcd_base_coords[0, :, :, 2] < agent_height).to(int)
             height_reachable_mask = torch.stack([height_reachable_mask] * 3, axis=-1)
@@ -138,14 +128,16 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             length_reachable_mask = (pcd_base_coords[0, :, :, 1] < agent_height).to(int)
             length_reachable_mask = torch.stack([length_reachable_mask] * 3, axis=-1)
             pcd_base_coords = pcd_base_coords * length_reachable_mask
-
+        # 根据目标掩码过滤点云
         non_zero_mask = torch.stack(
             [torch.from_numpy(target_mask).to(self.device)] * 3, axis=-1
         )
         pcd_base_coords = pcd_base_coords * non_zero_mask
 
-        return pcd_base_coords[0]
+        return pcd_base_coords[0] # 返回基础坐标系中的点云
 
+    #计算物体放置的3D空间位置。
+    #使用随机采样和邻域搜索找到最佳放置点
     def get_receptacle_placement_point(
         self,
         obs: Observations,
@@ -163,13 +155,14 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         NUM_POINTS_TO_SAMPLE = 50  # number of points to sample from receptacle point cloud to find best placement point
         SLAB_PADDING = 0.2  # x/y padding around randomly selected points
         SLAB_HEIGHT_THRESHOLD = 0.015  # 1cm above and below, i.e. 2cm overall
-        ALPHA_VIS = 0.5
+        ALPHA_VIS = 0.5 # 可视化时的透明度
 
+        #获取目标接收器的掩码，使用语义标签和有效深度掩码
         goal_rec_mask = (
             obs.semantic
             == obs.task_observations["end_recep_goal"] * du.valid_depth_mask(obs.depth)
         ).astype(np.uint8)
-        # Get dilated, then eroded mask (for cleanliness)
+        # Get dilated, then eroded mask (for cleanliness)，使用腐蚀和膨胀操作清理掩码
         goal_rec_mask = smooth_mask(
             goal_rec_mask, self.erosion_kernel, num_iterations=5
         )[1]
@@ -179,53 +172,62 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         if visualize:
             cv2.imwrite(f"{self.end_receptacle}_semantic.png", goal_rec_mask * 255)
 
+        # 如果目标接收器掩码中没有任何有效像素，则打印调试信息并返回None
         if not goal_rec_mask.any():
             if self.verbose:
                 print("End receptacle not visible.")
             return None
         else:
-            rgb_vis = obs.rgb
+            rgb_vis = obs.rgb # 获取RGB图像用于后续可视化
             pcd_base_coords = self.get_target_point_cloud_base_coords(
                 obs, goal_rec_mask, arm_reachability_check=arm_reachability_check
-            )
+            ) # 获取基础坐标系中的点云坐标
+
+            ## 随机采样接收器点云中的点以找到最佳放置点
             ## randomly sampling NUM_POINTS_TO_SAMPLE of receptacle point cloud – to choose for placement
             reachable_point_cloud = pcd_base_coords.cpu().numpy()
             flat_array = reachable_point_cloud.reshape(-1, 3)
 
+            # 找到矩阵前两个维度中非零元素的索引
             # find the indices of the non-zero elements in the first two dimensions of the matrix
             nonzero_indices = np.nonzero(flat_array[:, :2].any(axis=1))[0] #怎么会这么多元素为0？ 
+            # 创建包含非零索引的元组列表
             # create a list of tuples containing the non-zero indices in the first two dimensions
             nonzero_tuples = [
-                (
-                    index // reachable_point_cloud.shape[-2],
-                    index % reachable_point_cloud.shape[-2],
+                (                                                         
+                    #.shape返回点云的形状。.shape[-2]点云在第二维度的大小，即点云的高度。              
+                    index // reachable_point_cloud.shape[-2], #取整，得行索引
+                    index % reachable_point_cloud.shape[-2],  #取余，得列索引
                 )
                 for index in nonzero_indices
             ]
-
+            # 随机选择非零索引的子集
             # select a random subset of the non-zero indices
             random_indices = random.sample(
                 nonzero_tuples, min(NUM_POINTS_TO_SAMPLE, len(nonzero_tuples))
-            )
+            )# 随机选择采样点
 
-            x_values = pcd_base_coords[:, :, 0]
-            y_values = pcd_base_coords[:, :, 1]
-            z_values = pcd_base_coords[:, :, 2]
+            x_values = pcd_base_coords[:, :, 0]  # 获取点云的X坐标，：：获取所有的高度和宽度
+            y_values = pcd_base_coords[:, :, 1]  # 获取点云的Y坐标
+            z_values = pcd_base_coords[:, :, 2]  # 获取点云的Z坐标
 
-            max_surface_points = 0
+            max_surface_points = 0 # 初始化最大表面点数
             # max_height = 0
 
+            # 初始化最佳体素相关变量
             max_surface_mask, best_voxel_ind, best_voxel = None, None, None
 
             ## iterating through all randomly selected voxels and choosing one with most XY neighboring surface area within some height threshold
+            # 遍历所有随机选择的体素并选择 高度阈值内具有最大XY相邻表面积最大的体素作为最佳放置点
             for ind in random_indices:
-                sampled_voxel = pcd_base_coords[ind[0], ind[1]]
+                sampled_voxel = pcd_base_coords[ind[0], ind[1]] # 获取随机选择的体素,ind[0]点云高度,ind[1]点云宽度
                 sampled_voxel_x, sampled_voxel_y, sampled_voxel_z = (
-                    sampled_voxel[0],
-                    sampled_voxel[1],
-                    sampled_voxel[2],
+                    sampled_voxel[0], # 体素的X坐标
+                    sampled_voxel[1], # 体素的Y坐标
+                    sampled_voxel[2], # 体素的Z坐标
                 )
 
+                # 采样随机选择的体素周围的点云平面（高度容差范围内）
                 # sampling plane of pcd voxels around randomly selected voxel (with height tolerance)
                 slab_points_mask_x = torch.bitwise_and(
                     (x_values >= sampled_voxel_x - SLAB_PADDING),
@@ -240,12 +242,14 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                     (z_values <= sampled_voxel_z + SLAB_HEIGHT_THRESHOLD),
                 )
 
+
+                #生成平面掩码
                 slab_points_mask = torch.bitwise_and(
                     slab_points_mask_x, slab_points_mask_y
-                ).to(torch.uint8)
+                ).to(torch.uint8)  # 结合X和Y坐标的掩码
                 slab_points_mask = torch.bitwise_and(
                     slab_points_mask, slab_points_mask_z
-                ).to(torch.uint8)
+                ).to(torch.uint8) # 结合Z坐标的掩码
 
                 # ALTERNATIVE: choose slab with maximum (area x height) product
                 # TODO: remove dead code
@@ -259,6 +263,8 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                 # )
                 # height = (slab_points_mask_stacked * pcd_base_coords)[..., 2].max()
                 # if slab_points_mask.sum() * height >= max_surface_points * max_height:
+                
+                # 选择具有最大XY邻域表面积的平面
                 if slab_points_mask.sum() >= max_surface_points:
                     max_surface_points = slab_points_mask.sum()
                     max_surface_mask = slab_points_mask
@@ -266,9 +272,10 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                     best_voxel_ind = ind
                     best_voxel = sampled_voxel #确实是随机选的点，可是为什么每次都会选到边缘上？
 
+            # 用于可视化的平面点掩码
             slab_points_mask_vis = torch.stack(
                 [
-                    max_surface_mask * 255,
+                    max_surface_mask * 255, # 扩展掩码用于可视化
                     max_surface_mask,
                     max_surface_mask,
                 ],
@@ -276,22 +283,25 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             )  # for visualization
             rgb_vis_tmp = cv2.addWeighted(
                 rgb_vis, ALPHA_VIS, slab_points_mask_vis.cpu().numpy(), 1 - ALPHA_VIS, 0
-            )
+            )# 合并RGB图像和掩码进行可视化
 
             rgb_vis_tmp = cv2.circle(
                 rgb_vis_tmp,
-                (best_voxel_ind[1], best_voxel_ind[0]),
+                (best_voxel_ind[1], best_voxel_ind[0]),# 在最佳体素位置绘制圆圈
                 4,
-                (0, 255, 0),
+                (0, 255, 0),#绿色
                 thickness=2,
             )
 
+            # 如果有可视化输入，更新其语义帧
             if vis_inputs is not None and vis_inputs["semantic_frame"] is not None:
                 vis_inputs["semantic_frame"][..., :3] = rgb_vis_tmp
-
+            
+            # 在最佳体素上添加放置边距
             # Add placement margin to the best voxel that we chose
             best_voxel[2] += self.placement_drop_distance # 加了一个高度？！
 
+            # 如果需要调试可视化，显示点云
             if self.debug_visualize_xyz:
                 from home_robot.utils.point_cloud import show_point_cloud
 
@@ -309,6 +319,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
 
             return best_voxel.cpu().numpy(), vis_inputs
 
+    #实现了放置物体的动作序列，包括转向、前进、抬起手臂、放置物体等步骤。
     def forward(self, obs: Observations, vis_inputs: Optional[Dict] = None):
         """
         1. Get estimate of point on receptacle to place object on.
@@ -323,7 +334,21 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             action: what the robot will do - a hybrid action, discrete or continuous
             vis_inputs: dictionary containing extra info for visualizations
         """
+        """
+        实现物体放置的主要逻辑流程。
+        1. 获取接收器上的放置点估计。
+        2. 朝向放置点方向调整。
+        3. 向前移动靠近放置点。
+        4. 转动90度使手臂对准物体，再转动摄像头对准手臂。
+        5. 再次获取接收器上的放置点估计。
+        6. 将摄像头、手臂和物体对准后，基于第4步的估计设置手臂的提升和扩展。
 
+        返回：
+            action: 机器人将执行的动作，可以是离散或连续动作
+            vis_inputs: 包含用于可视化的额外信息的字典
+        """
+
+        # 获取环境配置中的转角度和前进步长
         turn_angle = self.config.ENVIRONMENT.turn_angle
         fwd_step_size = self.config.ENVIRONMENT.forward
 
@@ -355,27 +380,19 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                         self.placement_voxel[2],
                         self.placement_voxel[0],
                     ]
-                ) # y, z, x
+                )
 
                 delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans)) # 头部需要转的角度,根据当前(x,y)和pos(x,y)计算
-                # 这个和下面的角度难道不会冲突吗？
 
                 self.initial_orient_num_turns = abs(delta_heading) // turn_angle
                 self.orient_turn_direction = np.sign(delta_heading)
                 # This gets the Y-coordiante of the center voxel
                 # Base link to retracted arm - this is about 15 cm
-                # fwd_dist = (
-                #     self.placement_voxel[1]
-                #     - STRETCH_STANDOFF_DISTANCE
-                #     - RETRACTED_ARM_APPROX_LENGTH
-                # )
-                # @cyw
                 fwd_dist = (
                     self.placement_voxel[1]
-                    # - STRETCH_STANDOFF_DISTANCE
+                    - STRETCH_STANDOFF_DISTANCE
                     - RETRACTED_ARM_APPROX_LENGTH
                 )
-
 
                 fwd_dist = np.clip(fwd_dist, 0, np.inf)  # to avoid negative fwd_dist
                 self.forward_steps = fwd_dist // fwd_step_size
@@ -384,22 +401,13 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                 )
                 self.fall_wait_steps = 0
                 self.t_go_to_top = self.total_turn_and_forward_steps + 1
-                self.t_go_to_place = self.total_turn_and_forward_steps + 2 # move to the top of place point
-                # self.t_release_object = self.total_turn_and_forward_steps + 3
-                # self.t_lift_arm = self.total_turn_and_forward_steps + 4
-                # self.t_retract_arm = self.total_turn_and_forward_steps + 5
-                # self.t_extend_arm = -1
-                # self.t_done_waiting = (
-                #     self.total_turn_and_forward_steps + 5 + self.fall_wait_steps
-                # )
-
-                # @cyw
-                self.t_release_object = self.total_turn_and_forward_steps + 3 + go_to_place_add_step
-                self.t_lift_arm = self.total_turn_and_forward_steps + 4 + go_to_place_add_step
-                self.t_retract_arm = self.total_turn_and_forward_steps + 5 + go_to_place_add_step
+                self.t_go_to_place = self.total_turn_and_forward_steps + 2
+                self.t_release_object = self.total_turn_and_forward_steps + 3
+                self.t_lift_arm = self.total_turn_and_forward_steps + 4
+                self.t_retract_arm = self.total_turn_and_forward_steps + 5
                 self.t_extend_arm = -1
                 self.t_done_waiting = (
-                    self.total_turn_and_forward_steps + 5 + go_to_place_add_step + self.fall_wait_steps
+                    self.total_turn_and_forward_steps + 5 + self.fall_wait_steps
                 )
                 if self.verbose:
                     print("-" * 20)
@@ -411,7 +419,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             print("Timestep", self.timestep)
         if self.timestep < self.initial_orient_num_turns:
             if self.orient_turn_direction == -1:
-                action = DiscreteNavigationAction.TURN_RIGHT # 负角度是turn right?
+                action = DiscreteNavigationAction.TURN_RIGHT
             if self.orient_turn_direction == +1:
                 action = DiscreteNavigationAction.TURN_LEFT
             if self.verbose:
@@ -436,24 +444,24 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             current_arm_lift = obs.joint[4]
             delta_arm_lift = placement_height - current_arm_lift
             # # @cyw
-            delta_arm_lift = delta_arm_lift-0.3
+            # delta_arm_lift = delta_arm_lift-0.2
 
             current_arm_ext = obs.joint[:4].sum()
-            # delta_arm_ext = (
-            #     placement_extension
-            #     - STRETCH_STANDOFF_DISTANCE
-            #     - RETRACTED_ARM_APPROX_LENGTH
-            #     - current_arm_ext
-            #     + HARDCODED_ARM_EXTENSION_OFFSET
-            # )
-            # # # @cyw
             delta_arm_ext = (
                 placement_extension
-                # - STRETCH_STANDOFF_DISTANCE
+                - STRETCH_STANDOFF_DISTANCE
                 - RETRACTED_ARM_APPROX_LENGTH
                 - current_arm_ext
                 + HARDCODED_ARM_EXTENSION_OFFSET
             )
+            # # # # @cyw
+            # delta_arm_ext = (
+            #     placement_extension
+            #     # - STRETCH_STANDOFF_DISTANCE
+            #     - RETRACTED_ARM_APPROX_LENGTH
+            #     - current_arm_ext
+            #     + HARDCODED_ARM_EXTENSION_OFFSET
+            # )
             # # 修改 extension 和 lift后,能够放上去,但是会发生碰撞,所以根本上还是这个点计算得不对?
             center_voxel_trans = np.array(
                 [
@@ -463,58 +471,22 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                 ]
             )
             delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans))
-            # TODO 假如头部转动，这个角度就不对了
 
             delta_gripper_yaw = delta_heading / 90 - HARDCODED_YAW_OFFSET
-            # @cyw
-            # delta_gripper_yaw = delta_heading / 90
 
             if self.verbose:
                 print("[Placement] Delta arm extension:", delta_arm_ext)
                 print("[Placement] Delta arm lift:", delta_arm_lift)
-            # joints = np.array(
-            #     [delta_arm_ext]
-            #     + [0] * 3
-            #     + [delta_arm_lift]
-            #     + [delta_gripper_yaw]
-            #     + [0] * 4
-            # )
-            # @cyw 分三步走
-            self.delta_arm_ext = delta_arm_ext
-            self.delta_arm_lift = delta_arm_lift
-            self.delta_gripper_yaw = delta_gripper_yaw
             joints = np.array(
-                [0]
+                [delta_arm_ext]
                 + [0] * 3
-                + [0]
+                + [delta_arm_lift]
                 + [delta_gripper_yaw]
                 + [0] * 4
             )
-            self.delta_gripper_yaw = None
             # @cyw
-            # joints = self._look_at_ee(joints)
+            joints = self._look_at_ee(joints)
             action = ContinuousFullBodyAction(joints)
-        # @cyw
-        elif self.timestep == self.t_go_to_place + 1:
-            joints = np.array(
-                [self.delta_arm_ext]
-                + [0] * 3
-                + [0]
-                + [0]
-                + [0] * 4
-            )
-            action = ContinuousFullBodyAction(joints)
-            self.delta_arm_ext = None
-        elif self.timestep == self.t_go_to_place + 2:
-            joints = np.array(
-                [0]
-                + [0] * 3
-                + [self.delta_arm_lift]
-                + [0]
-                + [0] * 4
-            )
-            action = ContinuousFullBodyAction(joints)
-            self.delta_arm_lift = None
         elif self.timestep == self.t_release_object:
             # desnap to drop the object
             action = DiscreteNavigationAction.DESNAP_OBJECT
@@ -549,6 +521,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         self.timestep += 1
         return action, vis_inputs
 
+    #_lift、_look_at_ee、_retract等方法用于控制机器人的手臂位置和运动。
     def _lift(self, obs: Observations) -> ContinuousFullBodyAction:
         """Compute a high-up lift position to avoid collisions when releasing"""
         # Hab sim dimensionality for arm == 10
@@ -559,7 +532,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         lift_delta = self.max_arm_height - current_arm_lift
         joints[4] = lift_delta
         # @cyw
-        # joints = self._look_at_ee(joints)
+        joints = self._look_at_ee(joints)
         action = ContinuousFullBodyAction(joints)
         return action
 
@@ -585,6 +558,6 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         joints[0] = arm_delta
         joints[4] = lift_delta
         # @cyw
-        # joints = self._look_at_ee(joints)
+        joints = self._look_at_ee(joints)
         action = ContinuousFullBodyAction(joints)
         return action

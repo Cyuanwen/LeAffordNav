@@ -21,6 +21,7 @@ from home_robot.agent.ovmm_agent.random_agent import RandomAgent
 # @cyw
 from home_robot.agent.ovmm_agent.ovmm_agent_pick_place import OpenVocabManipAgent_pick_place
 from home_robot.agent.ovmm_agent.place_agent import PlaceAgent
+from home_robot.agent.ovmm_agent.ovmm_agent_skill_collect_refine import OpenVocabManipAgent as OpenVocabGazeManipAgent
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
@@ -42,6 +43,7 @@ if __name__ == "__main__":
         "--habitat_config_path",
         type=str,
         default="ovmm/ovmm_eval.yaml",
+        # default="/raid/home-robot/src/third_party/habitat-lab/habitat-baselines/habitat_baselines/config/ovmm/ovmm_eval.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
@@ -60,7 +62,7 @@ if __name__ == "__main__":
         "--agent_type",
         type=str,
         default="baseline",
-        choices=["baseline", "random", "explore", "zxy_pick_place","place"],
+        choices=["baseline", "random", "explore", "zxy_pick_place","place","gaze_place"],
         help="Agent to evaluate",
     )
     parser.add_argument(
@@ -131,7 +133,7 @@ if __name__ == "__main__":
 
     # device_id = env_config.habitat.simulator.habitat_sim_v0.gpu_device_id
     # # @cyw
-    device_id = 2 
+    device_id = 0
 
     # create agent
     if args.agent_type == "random":
@@ -143,6 +145,8 @@ if __name__ == "__main__":
         agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
     elif args.agent_type =="place":
         agent = PlaceAgent(agent_config, device_id=device_id)
+    elif args.agent_type == "gaze_place":
+        agent = OpenVocabGazeManipAgent(agent_config, device_id=device_id)
     else:
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 

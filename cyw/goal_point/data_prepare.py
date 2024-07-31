@@ -135,7 +135,7 @@ class data_prepare:
     '''
     def __init__(self,data_dir,env_config,agent_config) -> None:
         self.data_dir = data_dir
-        self.map_prepare = map_prepare(env_config=env_config,agent_config=agent_config)
+        self.map_prepare = map_prepare(agent_config=agent_config)
         self.h5py_dataset = h5py.File(os.path.join(data_dir,"data_out.hdf5"),"r+")
         with open(os.path.join(data_dir,"place_waypoint.pkl"),"rb") as f:
             self.pkl_data = pickle.load(f)

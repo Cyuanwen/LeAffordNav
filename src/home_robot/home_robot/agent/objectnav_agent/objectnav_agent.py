@@ -170,6 +170,8 @@ class ObjectNavAgent(Agent):
         semantic_max_val: Optional[List[int]] = None,
         obstacle_locations: torch.Tensor = None,
         free_locations: torch.Tensor = None,
+        # @cyw
+        seq_goal_map_pre: bool=False,
     ) -> Tuple[List[dict], List[dict]]:
         """Prepare low-level planner inputs from an observation - this is
         the main inference function of the agent that lets it interact with
@@ -186,6 +188,8 @@ class ObjectNavAgent(Agent):
             start_recep_goal_category: semantic category of start receptacle goals
             end_recep_goal_category: semantic category of end receptacle goals
             camera_pose: camera extrinsic pose of shape (num_environments, 4, 4)
+            # @cyw
+            seq_goal_map_pre: 是否使用semantic定义好的goal_map
         Returns:
             planner_inputs: list of num_environments planner inputs dicts containing
                 obstacle_map: (M, M) binary np.ndarray local obstacle map
@@ -250,6 +254,7 @@ class ObjectNavAgent(Agent):
             semantic_max_val=semantic_max_val,
             seq_obstacle_locations=obstacle_locations,
             seq_free_locations=free_locations,
+            seq_goal_map_pre=seq_goal_map_pre
         )
 
         self.semantic_map.local_pose = seq_local_pose[:, -1]
@@ -257,13 +262,18 @@ class ObjectNavAgent(Agent):
         self.semantic_map.lmb = seq_lmb[:, -1]
         self.semantic_map.origins = seq_origins[:, -1]
 
-        goal_map = goal_map.squeeze(1).cpu().numpy()
-        found_goal = found_goal.squeeze(1).cpu()
+        goal_map = goal_map.squeeze(1).cpu().numpy() # 1, w, h
+        found_goal = found_goal.squeeze(1).cpu() # 1
+
+        # @cyw
+        if seq_goal_map_pre:
+            for e in range(self.num_environments):
+                goal_map[e] = self.semantic_map.get_goal_from_global(e)
 
         for e in range(self.num_environments):
             self.semantic_map.update_frontier_map(e, frontier_map[e][0].cpu().numpy())
             if found_goal[e] or self.timesteps_before_goal_update[e] == 0:
-                self.semantic_map.update_global_goal_for_env(e, goal_map[e])
+                self.semantic_map.update_local_goal_for_env(e, goal_map[e])
                 if self.timesteps_before_goal_update[e] == 0:
                     self.timesteps_before_goal_update[e] = self.goal_update_steps
             self.timesteps[e] = self.timesteps[e] + 1
@@ -425,7 +435,6 @@ class ObjectNavAgent(Agent):
         if "semantic_max_val" in obs.task_observations:
             semantic_max_val = obs.task_observations["semantic_max_val"]
 
-        # TODO 需要替换
         # 2 - Semantic mapping + policy
         planner_inputs, vis_inputs = self.prepare_planner_inputs(
             obs_preprocessed,
@@ -496,10 +505,10 @@ class ObjectNavAgent(Agent):
         return action, info
     
     # @cyw
-    def nav2goal(self, obs: Observations, goal) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
-        '''导航到指定点
+    def nav2goal(self, obs: Observations) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
+        '''导航到指定点,goal point通过 调用 navigation_agent semantic_map 的 set_goal方法设置
             ref: 上面的act()
-            NOTE 地图的坐标系是否在不断变化?
+            NOTE 地图的坐标系是在不断变化
         '''
         if self.get_timing:
             t0 = time.time()
@@ -515,10 +524,6 @@ class ObjectNavAgent(Agent):
             goal_name,
             camera_pose,
         ) = self._preprocess_obs(obs)
-        # @cyw
-        if debug:
-            print(np.unique(obs.semantic))
-            print(torch.where(torch.sum(obs_preprocessed[0,4:,:,:],dim=(1,2))!=0))
 
         if "obstacle_locations" in obs.task_observations:
             obstacle_locations = obs.task_observations["obstacle_locations"]
@@ -573,6 +578,7 @@ class ObjectNavAgent(Agent):
             semantic_max_val=semantic_max_val,
             obstacle_locations=obstacle_locations,
             free_locations=free_locations,
+            seq_goal_map_pre= True,
         )
 
         if self.get_timing:
@@ -600,6 +606,8 @@ class ObjectNavAgent(Agent):
                 use_dilation_for_stg=self.use_dilation_for_stg,
                 timestep=self.timesteps[0],
                 debug=self.verbose,
+                not_change_goal=True,
+                not_dilate_obstacle=False
             )
             # this is just changing the visualization but not the actual performance
             # if self.timesteps_before_goal_update[0] == self.goal_update_steps - 1:

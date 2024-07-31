@@ -114,6 +114,8 @@ class ObjectNavAgentModule(nn.Module):
         semantic_max_val=None,
         seq_obstacle_locations=None,
         seq_free_locations=None,
+        # @cyw
+        seq_goal_map_pre:bool=False,
     ):
         """Update maps and poses with a sequence of observations, and predict
         high-level goals from map features.
@@ -145,8 +147,9 @@ class ObjectNavAgentModule(nn.Module):
              (batch_size, sequence_length, 1)
             seq_end_recep_goal_category: sequence of end recep goal categories of shape
              (batch_size, sequence_length, 1)
-            seq_nav_to_recep: sequence of binary digits indicating if navigation is to object or end receptacle of shape
-             (batch_size, 1)
+            seq_goal_map_pre: 是否使用预先设置的goal,这时不用额外计算goal
+            #  @cyw
+            seq_goal_map = None, sequence of binary digits indicating goal map
         Returns:
             seq_goal_map: sequence of binary maps encoding goal(s) of shape
              (batch_size, sequence_length, M, M)
@@ -219,42 +222,54 @@ class ObjectNavAgentModule(nn.Module):
             seq_end_recep_goal_category = seq_end_recep_goal_category.flatten(0, 1)
         if seq_instance_id is not None:
             seq_instance_id = seq_instance_id.flatten(0, 1)
-        # @cyw
-        # 如果使用esc 导航，计算当前位置
-        if self.esc_frontier:
-            states = seq_local_pose[:, -1, 0:2] # seq_local_pose shape (batch, seq_length, 3) [:, -1]选取第二维的最后一个
-            states = states * 100.0 / self.map_resolution
-            states = states.to(torch.int)
-            for i in range(len(states)):
-                states[i] = pu.threshold_poses(states[i], seq_map_features.shape[-2:])
-            # 参考 src/home_robot/home_robot/navigation_planner/discrete_planner.py 172行，将 x, y坐标翻转
-            states = states[:,[1,0]]
-        else:
-            states = None
         
-        # start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
-        # gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
-        # planning_window = [gx1, gx2, gy1, gy2]
+        # # Compute the goal map
+        # goal_map, found_goal = self.policy(
+        #     map_features,
+        #     seq_object_goal_category,
+        #     seq_start_recep_goal_category,
+        #     seq_end_recep_goal_category,
+        #     seq_instance_id,
+        #     seq_nav_to_recep,
+        #     states,
+        # )
+        # seq_goal_map = goal_map.view(batch_size, sequence_length, *goal_map.shape[-2:])
+        # seq_found_goal = found_goal.view(batch_size, sequence_length)
 
-        # start = [
-        #     int(start_y * 100.0 / self.map_resolution - gx1),
-        #     int(start_x * 100.0 / self.map_resolution - gy1),
-        # ]
-        # start = pu.threshold_poses(start, obstacle_map.shape)
-        # start = np.array(start)
-        
+        # @cyw modified
         # Compute the goal map
-        goal_map, found_goal = self.policy(
-            map_features,
-            seq_object_goal_category,
-            seq_start_recep_goal_category,
-            seq_end_recep_goal_category,
-            seq_instance_id,
-            seq_nav_to_recep,
-            states,
-        )
-        seq_goal_map = goal_map.view(batch_size, sequence_length, *goal_map.shape[-2:])
-        seq_found_goal = found_goal.view(batch_size, sequence_length)
+        if not seq_goal_map_pre:
+            # @cyw
+            # 如果使用esc 导航，计算当前位置
+            if self.esc_frontier:
+                states = seq_local_pose[:, -1, 0:2] 
+                # seq_local_pose shape (batch, seq_length, 3) [:, -1]选取第二维的最后一个
+                states = states * 100.0 / self.map_resolution
+                states = states.to(torch.int)
+                for i in range(len(states)):
+                    states[i] = pu.threshold_poses(states[i], seq_map_features.shape[-2:])
+                # 参考 src/home_robot/home_robot/navigation_planner/discrete_planner.py 
+                # 172行，将 x, y坐标翻转
+                states = states[:,[1,0]]
+            else:
+                states = None
+            goal_map, found_goal = self.policy(
+                map_features,
+                seq_object_goal_category,
+                seq_start_recep_goal_category,
+                seq_end_recep_goal_category,
+                seq_instance_id,
+                seq_nav_to_recep,
+                states,
+            )
+            seq_goal_map = goal_map.view(batch_size, sequence_length, *goal_map.shape[-2:]) 
+            # 1, 1, w, h
+            seq_found_goal = found_goal.view(batch_size, sequence_length)
+        else:
+            # NOTE 只要给定goal_map,就认为都发现goal,如果并行运行,可能存在某些环境有goal,某些没有
+            # 因此,现在不能并行运行
+            seq_goal_map = torch.zeros((batch_size, sequence_length,*final_local_map.shape[-2:]))
+            seq_found_goal = torch.ones((batch_size, sequence_length))
 
         # Compute the frontier map here
         frontier_map = self.policy.get_frontier_map(map_features)

@@ -2,6 +2,9 @@
 ovmm 技能采集代码 copy from src/home_robot/home_robot/agent/ovmm_agent/ovmm_agent.py
 在每个技能开始之前先环顾四周，建立语义地图，并且将此语义地图返回
 NOTE: 配置文件里面需要设置跳过非技能的步骤
+
+limitation:
+next_recep情况的处理: 无法处理,如果设置 nav_to_recp,会导致程序陷入 gaze_at_recep 和 nav_to_recp之间的死循环
 '''
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
@@ -18,7 +21,7 @@ import cv2
 
 from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
-# from home_robot.manipulation import HeuristicPickPolicy, HeuristicPlacePolicy_cyw #调试用
+from home_robot.manipulation import HeuristicPlacePolicy_cyw #调试用
 from home_robot.manipulation import HeuristicPickPolicy, HeuristicPlacePolicy
 from home_robot.perception.constants import RearrangeBasicCategories
 from home_robot.perception.wrapper import (
@@ -77,6 +80,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.pick_policy = None
         self.place_policy = None
         self.semantic_sensor = None
+        # @cyw
+        self.gaze_goal = False
+        self.arrive_gaze_goal = False
+        self.gaze_policy = None
+        self.gaze_recep_start_step = None
 
         if config.GROUND_TRUTH_SEMANTICS == 1 and self.store_all_categories_in_map:
             # currently we get ground truth semantics of only the target object category and all scene receptacles from the simulator
@@ -99,11 +107,12 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 config, self.device, verbose=self.verbose
             )
         if config.AGENT.SKILLS.PLACE.type == "heuristic" and not self.skip_skills.place:
-            # @cyw
-            # self.place_policy = HeuristicPlacePolicy_cyw(
-            #     config, self.device, verbose=self.verbose
-            # )
             self.place_policy = HeuristicPlacePolicy(
+                config, self.device, verbose=self.verbose
+            )
+        # @cyw
+        elif config.AGENT.SKILLS.PLACE.type == "heuristic_cyw" and not self.skip_skills.place:
+            self.place_policy = HeuristicPlacePolicy_cyw(
                 config, self.device, verbose=self.verbose
             )
         elif config.AGENT.SKILLS.PLACE.type == "rl" and not self.skip_skills.place:
@@ -123,6 +132,13 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 config.AGENT.SKILLS.GAZE_OBJ,
                 device_id=device_id,
             )
+        # cyw
+        elif config.AGENT.SKILLS.GAZE_OBJ.type == "heuristic" and not skip_both_gaze:
+            from home_robot.navigation_policy.gaze.gaze_policy import gaze_rec_policy
+            self.gaze_policy = gaze_rec_policy(
+                config=config,
+            )
+            # TODO 代码确定后,将可视化去掉
         if (
             config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl"
             and not self.skip_skills.nav_to_obj
@@ -219,9 +235,19 @@ class OpenVocabManipAgent(ObjectNavAgent):
             self.place_policy.reset()
         if self.pick_policy is not None:
             self.pick_policy.reset()
+        # @cyw
+        if self.gaze_policy is not None:
+            self.gaze_policy.reset()
+        self.gaze_goal= False
+        self.arrive_gaze_goal = False
+        self.gaze_recep_start_step = torch.tensor([0] * self.num_environments)
 
+    # def get_nav_to_recep(self):
+    #     return (self.states == Skill.NAV_TO_REC).float().to(device=self.device)
+
+    # @cyw
     def get_nav_to_recep(self):
-        return (self.states == Skill.NAV_TO_REC).float().to(device=self.device)
+        return ((self.states == Skill.NAV_TO_REC) or (self.states == Skill.GAZE_AT_REC )).float().to(device=self.device)
 
     def reset_vectorized_for_env(self, e: int):
         """Initialize agent state for a specific environment."""
@@ -245,7 +271,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.place_agent is not None:
             self.place_agent.reset_vectorized_for_env(e)
         if self.nav_to_rec_agent is not None:
-            self.nav_to_rec_agent.reset_vectorized_for_env(e)
+            self.nav_to_rec_agent.reset_vectorized_for_env(e)        
 
     def _init_episode(self, obs: Observations,
         current_episode_key:Optional[str] = None,
@@ -310,6 +336,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 ):
                     self._set_semantic_vocab(SemanticVocab.FULL, force_set=False)
         elif next_skill == Skill.GAZE_AT_REC:
+            # @cyw
+            self.gaze_recep_start_step[e] = self.timesteps[e]
             if not self.store_all_categories_in_map:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=False)
             # We reuse gaze agent between pick and place
@@ -404,6 +432,66 @@ class OpenVocabManipAgent(ObjectNavAgent):
             terminate = False
         return action, info, terminate
 
+    # @cyw
+    def _heuristic_gaze(
+        self, obs: Observations, info: Dict[str, Any]
+    ) -> Tuple[DiscreteNavigationAction, Any]:
+        '''获得gaze_policy的输入
+            现在只获取 obstacle_map 和 recep_map, 之后还会修改
+        '''
+        gaze_step = self.timesteps[0] - self.gaze_recep_start_step[0]
+        if not self.gaze_goal: # TODO 也可以把if条件去掉,如果预测的地图比较稳定的话
+        # 地图一直在调整,可能是为了让agent位于地图中间?所以需要goal也跟着地图做调整
+            gaze_goal_map = self.gaze_policy.act(info)
+            if gaze_goal_map is not None:
+                self.semantic_map.set_global_goal_for_env(0, global_goal= None,                local_goal=gaze_goal_map)
+                self.gaze_goal = True
+            # info只在第一步的时候包含信息
+            # NOTE 配置文件中 getattr(config.AGENT,"collect_end_recep",False)需要为True
+        
+        # #  获取 obstacle_map, recep_map and sensorpose
+        # if self.store_all_categories_in_map or self.full_vocab:
+        #     end_recep_idx = obs.task_observations["end_recep_goal"]
+        # else:
+        #     end_recep_idx = 3
+        # end_recep_goal_category = torch.tensor(end_recep_idx).unsqueeze(0)
+        # map_info = [
+        #     {
+        #         "obstacle_map": self.semantic_map.get_obstacle_map(e),
+        #         "sensor_pose": self.semantic_map.get_planner_pose_inputs(e),
+        #         "end_recep": \
+        #             self.semantic_map.get_semantic_map_obj(e,end_recep_goal_category[0])
+        #     }
+        #     for e in range(self.num_environments)
+        # ]
+        # self.gaze_goal_map = self.gaze_policy.act(map_info[0])
+        # # 预测非常不稳定
+
+        if self.gaze_goal:
+            if not self.arrive_gaze_goal and gaze_step < 30:
+                action, planner_info = super().nav2goal(obs)
+                if action == DiscreteNavigationAction.STOP:
+                    self.arrive_gaze_goal = True
+                    action = DiscreteNavigationAction.EMPTY_ACTION
+                terminate = False
+            else:
+                action, planner_info = super().act(obs) # 即使这样也没有完全朝向容器
+                if action == DiscreteNavigationAction.STOP:
+                    terminate = True
+                    self.gaze_goal = False
+                else:
+                    terminate = False
+            # info overwrites planner_info entries for keys with same name
+            info = {**planner_info, **info}
+            self.timesteps[0] -= 1  # objectnav agent increments timestep
+            # 因为在act的函数里面还会加一次，所以，这里减回去
+            info["timestep"] = self.timesteps[0]
+            return action, info, terminate
+        else:
+            action = None
+            terminate = True
+            return action, info, terminate
+            
     def _heuristic_pick(
         self, obs: Observations, info: Dict[str, Any]
     ) -> Tuple[DiscreteNavigationAction, Any]:
@@ -465,13 +553,19 @@ class OpenVocabManipAgent(ObjectNavAgent):
     def _look_around(
         self, obs: Observations, info: Dict[str, Any]
     )->Tuple[DiscreteNavigationAction, Any, Optional[Skill]]:
-        action, info, terminate = self._look_around_map(obs, info)
-        new_state = None
-        info["look_around_done"] = False
-        if info["timestep"]==self.episode_panorama_start_steps+1:
-            action = DiscreteNavigationAction.EMPTY_ACTION
-            info["look_around_done"] = True
-        elif info["timestep"]==self.episode_panorama_start_steps+2:
+        if self.skip_skills.look_around:
+            terminate = True
+        else:
+            action, info, terminate = self._look_around_map(obs, info)
+            new_state = None
+            info["look_around_done"] = False
+            if info["timestep"]==self.episode_panorama_start_steps+1:
+                action = DiscreteNavigationAction.EMPTY_ACTION
+                info["look_around_done"] = True
+            elif info["timestep"]==self.episode_panorama_start_steps+2:
+                action = None
+                new_state = Skill.NAV_TO_OBJ
+        if terminate:
             action = None
             new_state = Skill.NAV_TO_OBJ
         return action, info, new_state
@@ -489,7 +583,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
         elif nav_to_obj_type == "rl":
             action, info, terminate = self.nav_to_obj_agent.act(obs, info)
         elif nav_to_obj_type == "heuristic_esc":
-            # TODO 现在先暂时用之前的策略
             if self.verbose:
                 print("[OVMM AGENT] step heuristic nav policy")
             action, info, terminate = self._heuristic_nav(obs, info)
@@ -577,7 +670,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
         elif nav_to_rec_type == "rl":
             action, info, terminate = self.nav_to_rec_agent.act(obs, info)
         elif nav_to_rec_type == "heuristic_esc":
-            # TODO 
             action, info, terminate = self._heuristic_nav(obs, info)
         else:
             raise ValueError(
@@ -592,14 +684,27 @@ class OpenVocabManipAgent(ObjectNavAgent):
     def _gaze_at_rec(
         self, obs: Observations, info: Dict[str, Any]
     ) -> Tuple[DiscreteNavigationAction, Any, Optional[Skill]]:
+        # @cyw
+        gaze_rec_type = self.config.AGENT.SKILLS.GAZE_OBJ.type
         if self.skip_skills.gaze_at_rec:
             terminate = True
+        # else:
+        #     action, info, terminate = self.gaze_agent.act(obs, info)
+        # @cyw
+        elif gaze_rec_type == "heuristic":
+            action, info, terminate = self._heuristic_gaze(obs, info)
         else:
             action, info, terminate = self.gaze_agent.act(obs, info)
         new_state = None
         if terminate:
             action = None
             new_state = Skill.PLACE
+            # if action is None:
+            #     new_state = Skill.NAV_TO_REC
+            # else:
+            #     action = None
+            #     new_state = Skill.PLACE
+            # 这样会使得两个技能反复循环
         return action, info, new_state
 
     def _place(
@@ -610,7 +715,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
             action = DiscreteNavigationAction.STOP
         elif place_type == "hardcoded":
             action = self._hardcoded_place()
-        elif place_type == "heuristic":
+        # elif place_type == "heuristic":
+        # @cyw
+        elif place_type == "heuristic" or place_type == "heuristic_cyw":
             action, info = self.place_policy(obs, info)
         elif place_type == "rl":
             action, info = self._rl_place(obs, info)

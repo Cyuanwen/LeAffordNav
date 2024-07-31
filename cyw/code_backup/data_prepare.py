@@ -159,7 +159,6 @@ class data_prepare:
                     keep_success=True,
                     recep_position=recep_position,
                 )
-                # TODO 是否有加快速度的办法？
                 # for each view_point
                 local_top_down_map_s = []
                 local_obstacle_map_s = []

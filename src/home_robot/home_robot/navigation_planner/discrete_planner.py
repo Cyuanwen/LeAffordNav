@@ -23,7 +23,8 @@ from home_robot.utils.geometry import xyt_global_to_base
 from .fmm_planner import FMMPlanner
 
 CM_TO_METERS = 0.01
-
+# @cyw
+visualize_cyw = False
 
 def add_boundary(mat: np.ndarray, value=1) -> np.ndarray:
     h, w = mat.shape
@@ -157,6 +158,9 @@ class DiscretePlanner:
         debug: bool = True,
         use_dilation_for_stg: bool = False,
         timestep: int = None,
+        # cyw
+        not_change_goal:bool=False,
+        not_dilate_obstacle:bool=False
     ) -> Tuple[DiscreteNavigationAction, np.ndarray]:
         """Plan a low-level action.
 
@@ -166,7 +170,9 @@ class DiscretePlanner:
             sensor_pose: (7,) array denoting global pose (x, y, o)
              and local map boundaries planning window (gx1, gx2, gy1, gy2)
             found_goal: whether we found the object goal category
-
+            # @cyw
+            not_change_goal: 使得fmm不改变goal map
+            not_dilate_obstacle: 不对障碍物进行膨胀
         Returns:
             action: low-level action
             closest_goal_map: (M, M) binary array denoting closest goal
@@ -226,6 +232,8 @@ class DiscretePlanner:
                 planning_window,
                 plan_to_dilated_goal=use_dilation_for_stg,
                 frontier_map=frontier_map,
+                not_change_goal=not_change_goal,
+                not_dilate_obstacle = not_dilate_obstacle
             )
         except Exception as e:
             print("Warning! Planner crashed with error:", e)
@@ -288,6 +296,8 @@ class DiscretePlanner:
                     start,
                     planning_window,
                     plan_to_dilated_goal=True,
+                    not_change_goal = not_change_goal,
+                    not_dilate_obstacle = not_dilate_obstacle
                 )
                 if debug:
                     print("--- after replanning to frontier ---")
@@ -454,6 +464,9 @@ class DiscretePlanner:
         plan_to_dilated_goal=False,
         frontier_map=None,
         visualize=False,
+        # @cyw
+        not_change_goal:bool=False, #是否不要改变goal
+        not_dilate_obstacle:bool=False
     ) -> Tuple[Tuple[int, int], np.ndarray, bool, bool]:
         """Get short-term goal.
 
@@ -481,7 +494,10 @@ class DiscretePlanner:
         obstacles = obstacle_map[x1:x2, y1:y2]
 
         # Dilate obstacles
-        dilated_obstacles = cv2.dilate(obstacles, self.obs_dilation_selem, iterations=1)
+        if not not_dilate_obstacle:
+            dilated_obstacles = cv2.dilate(obstacles, self.obs_dilation_selem, iterations=1)
+        else:
+            dilated_obstacles = obstacles
 
         # Create inverse map of obstacles - this is territory we assume is traversible
         # Traversible is now the map
@@ -495,6 +511,14 @@ class DiscretePlanner:
         ] = 1
         traversible = add_boundary(traversible)
         goal_map = add_boundary(goal_map, value=0)
+        # @cyw debug
+        if visualize_cyw:
+            print("calculate travisible goal map*************")
+            traversible_vis = np.stack((traversible,traversible,traversible),axis=2)
+            traversible_vis = traversible_vis*255
+            traversible_vis[goal_map>0,:]=[255,0,0]
+            cv2.imwrite('cyw/test_data/place_policy/goal_map/travisible_goal.jpg',traversible_vis)
+            print(f"goal save to cyw/test_data/place_policy/goal_map/travisible_goal.jpg")
         planner = FMMPlanner(
             traversible,
             step_size=self.step_size,
@@ -521,12 +545,16 @@ class DiscretePlanner:
                 traversible, goal_map, start, dilated_goal_map=dilated_goal_map
             )
         else:
-            navigable_goal_map = planner._find_within_distance_to_multi_goal(
-                goal_map,
-                self.min_goal_distance_cm / self.map_resolution,
-                timestep=self.timestep,
-                vis_dir=self.vis_dir,
-            )
+            # @cyw 如果强制不改变gaol map
+            if not not_change_goal:
+                navigable_goal_map = planner._find_within_distance_to_multi_goal(
+                    goal_map,
+                    self.min_goal_distance_cm / self.map_resolution,
+                    timestep=self.timestep,
+                    vis_dir=self.vis_dir,
+                )
+            else:
+                navigable_goal_map = goal_map
             if not np.any(navigable_goal_map):
                 frontier_map = add_boundary(frontier_map, value=0)
                 navigable_goal_map = frontier_map

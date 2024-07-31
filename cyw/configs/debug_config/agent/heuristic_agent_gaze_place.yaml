@@ -37,10 +37,10 @@ SEMANTIC_MAP:
 
 SKILLS:
   GAZE_OBJ:
-    type: rl #end_to_end #heuristic #hardcoded
-    checkpoint_path: data/checkpoints/ovmm_baseline_home_robot_challenge_2023_v0.2/gaze_at_obj.pth
-    # type: heuristic #end_to_end #heuristic #hardcoded
-    # checkpoint_path: data/cyw/targert_map_pred/unet-193-0.128.ckpt
+    # type: rl #end_to_end #heuristic #hardcoded
+    # checkpoint_path: data/checkpoints/ovmm_baseline_home_robot_challenge_2023_v0.2/gaze_at_obj.pth
+    type: heuristic #end_to_end #heuristic #hardcoded
+    checkpoint_path: data/cyw/targert_map_pred/unet-193-0.128.ckpt
     rl_config: projects/habitat_ovmm/configs/agent/skills/gaze_rl.yaml # with continuous actions
     gym_obs_keys:
       - robot_head_depth
@@ -166,9 +166,9 @@ SKILLS:
 skip_skills:
   look_around: False
   nav_to_obj: True
-  nav_to_rec: False
+  nav_to_rec: True
   gaze_at_obj: True
-  gaze_at_rec: True
+  gaze_at_rec: False
   pick: True
   place: False
 
