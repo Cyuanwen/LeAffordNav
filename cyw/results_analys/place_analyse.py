@@ -39,7 +39,7 @@ def get_replay_set(data_A, data_B):
                 replay_data[episode][recep_pos].append(waypoint)
     return replay_data
 
-def get_set(data_A,fail=True):
+def get_set(data_A,fail=True,key_name=None):
     '''
         找出data_A中失败的例子，找找原因
         fail: 如果是True,找出失败的例子，否则，找出成功的例子
@@ -50,7 +50,11 @@ def get_set(data_A,fail=True):
             condition = 0
         else:
             condition =1
-        if data_A[item_A] == condition:
+        if key_name == None:
+            condition_satisify = data_A[item_A] == condition
+        else:
+            condition_satisify = data_A[item_A][key_name] == condition
+        if condition_satisify:
             data_keys = item_A.split("_")
             episode = data_keys[-3]
             recep_pos = data_keys[-2]
@@ -67,7 +71,7 @@ def get_set(data_A,fail=True):
 if __name__ == "__main__":
     compare = False
     fail =True
-    data_A_file = "cyw/datasets/place_dataset_debug/train/heuristic_agent_nav_place_cyw/success.json"
+    data_A_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_esc_yolo_nav_place/_success.json"
     data_B_file = "cyw/datasets/place_dataset_debug/train/heuristic_agent_nav_place/success.json"
     with open(data_A_file,"r") as f:
         data_A = json.load(f)
@@ -81,7 +85,7 @@ if __name__ == "__main__":
         with open(save_dir,"wb") as f:
             pickle.dump(replay_data,f)
     else:
-        replay_data = get_set(data_A,fail=fail)
+        replay_data = get_set(data_A,fail=fail,key_name='place_success')
         file_A_policy = data_A_file.split("/")[-2]
         if fail:
             subfix = 'fail'

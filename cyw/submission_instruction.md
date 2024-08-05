@@ -147,6 +147,7 @@ evalai push ovmm_baseline_submission_v4_cmd:latest --phase neurips-ovmm-test-sta
 
 ### NOTE
 代码中如果添加新的模型，数据，请在 projects/habitat_ovmm/docker/ovmm_baseline_2024.Dockerfile 里面 添加 docker镜像配置命令，并添加注释说明
+
 conda 环境如果安装新 package 请在 projects/habitat_ovmm/docker/ovmm_baseline_2024.Dockerfile 里面 添加安装命令，并添加注释说明
 
 

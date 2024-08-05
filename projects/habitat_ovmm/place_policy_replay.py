@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 '''
 专门为了复现place 策略的代码，debug用，之后代码确定后，可删除
+TODO 记录更多指标，以便后续分析
 '''
 import argparse
 import os

@@ -603,10 +603,10 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
         
-        # @cyw
-        if show_rgb:
-            # cv2.imshow("rgb")
-            print("debug")
+        # # @cyw
+        # if show_rgb:
+        #     # cv2.imshow("rgb")
+        #     print("debug")
      
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:

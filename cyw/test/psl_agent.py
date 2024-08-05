@@ -158,7 +158,7 @@ class psl_agent(object):
         self.room_num = len(rooms)
         self.obj_num = len(recep_category_21)
     
-    def set_vocab(self,vocab:Optional[Dict],gt_seg:bool=False):
+    def set_vocab(self,vocab:Optional[Dict],gt_seg:bool=False,simple_check:bool=False):
         '''
         设置词表，{id:name} 需与语义地图一致
         '''
@@ -166,14 +166,17 @@ class psl_agent(object):
             self.vocab = vocab
             # 简单判断顺序是否一致
             obj_names = list(vocab.values())
-            if self.reasoning == "both":
-                assert obj_names[1:] == recep_category_21 + rooms
-            elif self.reasoning == "object":
-                assert obj_names[1:] == recep_category_21
-            elif self.reasoning == "room":
-                assert obj_names[-9:] == rooms
+            if not simple_check:
+                if self.reasoning == "both":
+                    assert obj_names[1:] == recep_category_21 + rooms
+                elif self.reasoning == "object":
+                    assert obj_names[1:] == recep_category_21
+                elif self.reasoning == "room":
+                    assert obj_names[-9:] == rooms
+                else:
+                    raise NotImplementedError
             else:
-                raise NotImplementedError
+                assert (obj_names[1:] == recep_category_21 + rooms) or (obj_names[1:] == recep_category_21) or (obj_names[-9:] == rooms), f"the {obj_names} is not match with any vocab"
         else:
             self.vocab = ["start_recp","end_recp"] + recep_category_21 + ["background"]
 

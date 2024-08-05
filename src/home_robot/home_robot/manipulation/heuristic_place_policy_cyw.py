@@ -7,6 +7,11 @@ copy from src/home_robot/home_robot/manipulation/heuristic_pick_policy.py
 将开环执行改为闭环执行?
 
 图像如何从世界坐标转到相机坐标：https://blog.csdn.net/chentravelling/article/details/53558096
+
+相比baseline的改动：
+1. turn angel改为 连续动作
+2. move forward 也 改为前向移动
+3. 先上下移动手臂，再伸缩手臂，期望能够避免一些碰撞
 '''
 import random
 from typing import Dict, Optional
@@ -20,6 +25,7 @@ import trimesh.transformations as tra
 import home_robot.utils.depth as du
 from home_robot.core.interfaces import (
     ContinuousFullBodyAction,
+    ContinuousNavigationAction,
     DiscreteNavigationAction,
     Observations,
 )
@@ -31,8 +37,10 @@ RETRACTED_ARM_APPROX_LENGTH = 0.15
 HARDCODED_ARM_EXTENSION_OFFSET = 0.15
 HARDCODED_YAW_OFFSET = 0.25
 # @cyw
+OBSTACLE_HEIGHT = 0.2 # 如果某个点上面0.2m距离范围内有物体，则去掉这个点
 go_to_place_add_step = 2 # 原本一步完成，现在多加 go_to_place_add_step 步，共需 go_to_place_add_step+1 步
 debug = True
+save_image = True
 
 
 class HeuristicPlacePolicy_cyw(nn.Module):
@@ -85,6 +93,8 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         obs: Observations,
         target_mask: np.ndarray,
         arm_reachability_check: bool = False,
+        # @cyw
+        filter_obstacle: bool = True, # TODO 过滤掉前方有障碍物的点? 不太好改
     ):
         """Get point cloud coordinates in base frame"""
         goal_rec_depth = torch.tensor(
@@ -112,7 +122,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         # Object point cloud in base coordinates
         pcd_base_coords = du.transform_camera_view_t(
             pcd_camera_coords, agent_height, np.rad2deg(tilt), self.device
-        )
+        ) # pcd_base_coords 坐标每一个元素是 （x,y,z） x正轴为前方，y正轴为左，z正轴为上
 
         if self.debug_visualize_xyz:
             # Remove invalid points from the mask
@@ -323,7 +333,6 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             action: what the robot will do - a hybrid action, discrete or continuous
             vis_inputs: dictionary containing extra info for visualizations
         """
-
         turn_angle = self.config.ENVIRONMENT.turn_angle
         fwd_step_size = self.config.ENVIRONMENT.forward
 
@@ -331,6 +340,9 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             self.du_scale = 1  # TODO: working with full resolution for now
             self.end_receptacle = obs.task_observations["goal_name"].split(" ")[-1]
             found = self.get_receptacle_placement_point(obs, vis_inputs)
+            # # @cyw
+            # found = self.get_receptacle_placement_point(obs, vis_inputs,arm_reachability_check=True) 
+            # 跑不起来，把mask全过滤掉了？
             # found = self.get_receptacle_placement_point(obs, vis_inputs,visualize=True)
 
             if found is None:
@@ -357,11 +369,19 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                     ]
                 ) # y, z, x
 
-                delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans)) # 头部需要转的角度,根据当前(x,y)和pos(x,y)计算
-                # 这个和下面的角度难道不会冲突吗？
+                # delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans)) 
+                # # 头部需要转的角度,根据当前(x,y)和pos(x,y)计算
+                # # 这个和下面的角度难道不会冲突吗？不会冲突
 
-                self.initial_orient_num_turns = abs(delta_heading) // turn_angle
-                self.orient_turn_direction = np.sign(delta_heading)
+                # self.initial_orient_num_turns = abs(delta_heading) // turn_angle
+                # self.orient_turn_direction = np.sign(delta_heading)
+
+                # @cyw  
+                self.initial_orient_num_turns = 1
+                delta_heading = get_angle_to_pos(center_voxel_trans)
+                # Must return commands in radians and meters
+                self.orient_turn_action = ContinuousNavigationAction([0, 0, delta_heading])
+
                 # This gets the Y-coordiante of the center voxel
                 # Base link to retracted arm - this is about 15 cm
                 # fwd_dist = (
@@ -379,9 +399,17 @@ class HeuristicPlacePolicy_cyw(nn.Module):
 
                 fwd_dist = np.clip(fwd_dist, 0, np.inf)  # to avoid negative fwd_dist
                 self.forward_steps = fwd_dist // fwd_step_size
+                
+                # self.total_turn_and_forward_steps = (
+                #     self.forward_steps + self.initial_orient_num_turns
+                # )
+                # @cyw
+                # ContinuousNavigationAction([0, 0, delta_heading])
+                self.forward_action_supply = ContinuousNavigationAction([fwd_dist % fwd_step_size, 0,0])
                 self.total_turn_and_forward_steps = (
-                    self.forward_steps + self.initial_orient_num_turns
+                    self.forward_steps + self.initial_orient_num_turns +1 
                 )
+
                 self.fall_wait_steps = 0
                 self.t_go_to_top = self.total_turn_and_forward_steps + 1
                 self.t_go_to_place = self.total_turn_and_forward_steps + 2 # move to the top of place point
@@ -410,16 +438,29 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             print("-" * 20)
             print("Timestep", self.timestep)
         if self.timestep < self.initial_orient_num_turns:
-            if self.orient_turn_direction == -1:
-                action = DiscreteNavigationAction.TURN_RIGHT # 负角度是turn right?
-            if self.orient_turn_direction == +1:
-                action = DiscreteNavigationAction.TURN_LEFT
+            # if self.orient_turn_direction == -1:
+            #     action = DiscreteNavigationAction.TURN_RIGHT # 负角度是turn right?是的
+            # if self.orient_turn_direction == +1:
+            #     action = DiscreteNavigationAction.TURN_LEFT
+            # @cyw
+            action = self.orient_turn_action
+            self.orient_turn_action = None
             if self.verbose:
                 print("[Placement] Turning to orient towards object")
-        elif self.timestep < self.total_turn_and_forward_steps:
+        # elif self.timestep < self.total_turn_and_forward_steps:
+        #     if self.verbose:
+        #         print("[Placement] Moving forward")
+        #     action = DiscreteNavigationAction.MOVE_FORWARD
+        elif self.timestep < self.total_turn_and_forward_steps-1:
             if self.verbose:
                 print("[Placement] Moving forward")
-            action = DiscreteNavigationAction.MOVE_FORWARD
+            action = DiscreteNavigationAction.MOVE_FORWARD 
+            # move_forward不起作用? 如果离障碍物太近，确实不能往前走
+        elif self.timestep < self.total_turn_and_forward_steps:
+            if self.verbose:
+                print("[Placement] Moving forward supply")
+            action = self.forward_action_supply
+            self.forward_action_supply = None
         elif self.timestep == self.total_turn_and_forward_steps:
             action = DiscreteNavigationAction.MANIPULATION_MODE
         elif self.timestep == self.t_go_to_top:
@@ -432,6 +473,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                 self.placement_voxel[2],
                 self.placement_voxel[1],
             )
+            # TODO 在移动之后，应该重新计算这个距离
 
             current_arm_lift = obs.joint[4]
             delta_arm_lift = placement_height - current_arm_lift
@@ -463,7 +505,7 @@ class HeuristicPlacePolicy_cyw(nn.Module):
                 ]
             )
             delta_heading = np.rad2deg(get_angle_to_pos(center_voxel_trans))
-            # TODO 假如头部转动，这个角度就不对了
+            # 假如头部转动，这个角度就不对了,这个角度改不改似乎无所谓
 
             delta_gripper_yaw = delta_heading / 90 - HARDCODED_YAW_OFFSET
             # @cyw
@@ -505,6 +547,16 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             )
             action = ContinuousFullBodyAction(joints)
             self.delta_arm_ext = None
+            # 执行 上下移动动作
+            # joints = np.array(
+            #     [0]
+            #     + [0] * 3
+            #     + [self.delta_arm_lift]
+            #     + [0]
+            #     + [0] * 4
+            # )
+            # action = ContinuousFullBodyAction(joints)
+            # self.delta_arm_lift = None
         elif self.timestep == self.t_go_to_place + 2:
             joints = np.array(
                 [0]
@@ -515,13 +567,26 @@ class HeuristicPlacePolicy_cyw(nn.Module):
             )
             action = ContinuousFullBodyAction(joints)
             self.delta_arm_lift = None
+            # 执行伸缩动作
+            # joints = np.array(
+            #     [self.delta_arm_ext]
+            #     + [0] * 3
+            #     + [0]
+            #     + [0]
+            #     + [0] * 4
+            # )
+            # action = ContinuousFullBodyAction(joints)
+            # self.delta_arm_ext = None
         elif self.timestep == self.t_release_object:
             # desnap to drop the object
             action = DiscreteNavigationAction.DESNAP_OBJECT
         elif self.timestep == self.t_lift_arm:
             action = self._lift(obs)
+            # # @cyw 把伸缩手臂和 上下移动手臂交换
+            # action = self._retract_simple(obs)  
         elif self.timestep == self.t_retract_arm:
-            action = self._retract(obs)
+            action = self._retract_simple(obs)
+            # action = self._lift(obs)
         elif self.timestep == self.t_extend_arm:
             action = DiscreteNavigationAction.EXTEND_ARM
         elif self.timestep <= self.t_done_waiting:
@@ -584,6 +649,27 @@ class HeuristicPlacePolicy_cyw(nn.Module):
         arm_delta = -1 * np.sum(obs.joint[:4])
         joints[0] = arm_delta
         joints[4] = lift_delta
+        # @cyw
+        # joints = self._look_at_ee(joints)
+        action = ContinuousFullBodyAction(joints)
+        return action
+
+    # @cyw
+    # 只收回手臂，不上下移动手臂
+    def _retract_simple(self, obs: Observations) -> ContinuousFullBodyAction:
+        """Compute a high-up retracted position to avoid collisions"""
+        # Hab sim dimensionality for arm == 10
+        joints = np.zeros(10)
+        # We take the lift position = 1
+        current_arm_lift = obs.joint[4]
+        # Target lift is 0.99
+        lift_delta = self.max_arm_height - current_arm_lift
+        # @cyw
+        # lift_delta = self.max_arm_height - current_arm_lift - 0.2 # 最大高度挡住机器人视线,剪掉一部分还是挡住的,这东西不好弄
+        # Arm should be fully retracted
+        arm_delta = -1 * np.sum(obs.joint[:4])
+        joints[0] = arm_delta
+        # joints[4] = lift_delta
         # @cyw
         # joints = self._look_at_ee(joints)
         action = ContinuousFullBodyAction(joints)

@@ -85,9 +85,9 @@ class ObjectNavFrontierExplorationPolicy(nn.Module):
         return 1
     
     # @cyw
-    def reset(self, vocab:Optional[Dict], gt_seg:bool=False):
+    def reset(self, vocab:Optional[Dict], gt_seg:bool=False, simple_check:bool=False):
         if self.esc_frontier:
-            self.psl_frontier_agent.set_vocab(vocab, gt_seg)
+            self.psl_frontier_agent.set_vocab(vocab, gt_seg, simple_check)
             
 
     def reach_single_category(self, map_features, category, states):

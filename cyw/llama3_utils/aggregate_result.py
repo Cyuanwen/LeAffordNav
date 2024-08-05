@@ -28,8 +28,8 @@ with open(target_neg_obj_file,'r') as f:
     target_neg_obj = json.load(f)
 co_occur_data = {}
 for recep in recep_category_21:
-    if recep == "toilet":
-        print("debug")
+    # if recep == "toilet":
+    #     print("debug")
     rec_rooms = target_room[recep]
     ini_room_len = len(rec_rooms)
     rec_rooms = [rec_room for rec_room in rec_rooms if rec_room in rooms]

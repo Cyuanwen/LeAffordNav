@@ -17,6 +17,7 @@ from loguru import logger
 import numpy as np
 import argparse
 import cv2
+import os
 
 from home_robot.navigation_planner.discrete_planner import DiscretePlanner
 from home_robot.core.interfaces import (
@@ -37,8 +38,10 @@ import pickle
 THRESHOLD = 0.5
 
 show_image = False
-save_image = False
-img_dir = "cyw/test_data/place_policy/goal_map_val"
+save_image = True
+img_dir = "cyw/test_data/place_policy/goal_map_yolo_detic"
+if not os.path.exists(img_dir):
+    os.makedirs(img_dir)
 
 class gaze_rec_policy:
     '''
@@ -47,7 +50,7 @@ class gaze_rec_policy:
     def __init__(
         self,
         config,
-        debug_vis:bool=True,
+        debug_vis:bool=False,
         verbose:bool=True,
     ) -> None:
         self.map_prepare = map_prepare(config)
@@ -114,21 +117,21 @@ class gaze_rec_policy:
         )
         # goal_map = np.expand_dims(goal_map,axis=0) # 1, w, h
          # visualize
-        if self.debug_vis:
+        if self.debug_vis and (show_image or save_image):
             print("*********calculate image************")
             local_map_vis = vis_local_map(
                 local_map=loacal_obstacle.cpu().numpy(),
                 recep_map = loacal_recep_map.cpu().numpy(),
                 goal_map = local_goal_map
             )
-            obstacle_map_vis = visual_init_obstacle_map_norotation(obstacle_map,sensor_pose)
-            obstacle_map_vis[goal_map>0] = 128
+            # obstacle_map_vis = visual_init_obstacle_map_norotation(obstacle_map,sensor_pose)
+            # obstacle_map_vis[goal_map>0] = 128
             if show_image:
                 cv2.imshow("local_obstacle_map",local_map_vis)
-                cv2.imshow("obstacle_map",obstacle_map_vis)
+                # cv2.imshow("obstacle_map",obstacle_map_vis)
             if save_image:
                 cv2.imwrite(f"{img_dir}/local_map_{self.time_step}.jpg",local_map_vis)
-                cv2.imwrite(f"{img_dir}/obstcal_map_{self.time_step}.jpg",obstacle_map_vis)
+                # cv2.imwrite(f"{img_dir}/obstcal_map_{self.time_step}.jpg",obstacle_map_vis)
                 print("*********** save img done **************")
             self.time_step += 1
         return goal_map

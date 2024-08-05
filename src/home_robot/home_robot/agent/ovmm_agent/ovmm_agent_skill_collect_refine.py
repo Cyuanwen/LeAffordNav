@@ -290,6 +290,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
                 and not self.skip_skills.nav_to_obj
             ):
+            # # @cyw
+            # elif (
+            #     (self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "rl" or self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc")
+            #     # and not self.skip_skills.nav_to_obj
+            # ):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
             else:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=True)
@@ -348,6 +353,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
         elif next_skill == Skill.FALL_WAIT:
             self.fall_wait_start_step[e] = self.timesteps[e]
         self.states[e] = next_skill
+        # @cyw
+        # 保证psl与detic的词汇一致
+        if self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc":
+            if self.config.GROUND_TRUTH_SEMANTICS == 0:
+                self.module.module.reset(vocab=self.semantic_sensor.vocabulary_id_to_name, gt_seg=False,simple_check=True)
         return action
 
     # @cyw 修改
@@ -760,10 +770,10 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
         
-        # @cyw
-        if show_rgb:
-            # cv2.imshow("rgb")
-            print("debug")
+        # # @cyw
+        # if show_rgb:
+        #     # cv2.imshow("rgb")
+        #     print("debug")
      
         while action is None:
             # @cyw

@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 '''
+src/home_robot/home_robot/manipulation/heuristic_place_policy_cyw.py 的备份
 copy from src/home_robot/home_robot/manipulation/heuristic_pick_policy.py
 将开环执行改为闭环执行?
 

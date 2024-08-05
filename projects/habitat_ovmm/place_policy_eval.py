@@ -103,7 +103,13 @@ def get_place_success(hab_info):
     #     episode_metrics["END.robot_collisions.robot_scene_colls"] == 0
     # ) * (episode_metrics["END.ovmm_place_success"] == 1)
     place_success = (hab_info['robot_collisions']['robot_scene_colls'] == 0) * (hab_info['ovmm_place_success'])
-    return place_success
+    other_info = {
+        "robot_scene_colls": hab_info['robot_collisions']['robot_scene_colls'],
+        "ovmm_placement_stability": int(hab_info['ovmm_placement_stability']),
+        "nav2place": int(hab_info['ovmm_nav_to_place_succ'] and hab_info['ovmm_nav_orient_to_place_succ'])
+
+    }
+    return place_success, other_info
 
 def convertManualInput(code):
     '''手动控制，将手动输入的代码转为动作
@@ -232,6 +238,7 @@ def eval_place_policy(
     data_dir: str, 
     env: HabitatOpenVocabManipEnv, agent,
     manual=False,
+    prefix = '', #保存文件的前缀名
 ):
     """Generates images of receptacles by episode for all scenes"""
 
@@ -252,6 +259,10 @@ def eval_place_policy(
     total_data = {}
     data_num = 0
     success_num = 0
+    if os.path.exists(os.path.join(data_dir,f"{prefix}_success.json")):
+        print(f"the file {os.path.join(data_dir,f'{prefix}_success.json')} has exists")
+        prefix = f"{prefix}_1"
+        print(f"will save data in {prefix}_1")
     while True:
         # Get a new episode
         # obs = env.reset()
@@ -275,6 +286,7 @@ def eval_place_policy(
         recep_vals = receptacle_positions[scene_id][recep]
         # for pos_pair in tqdm(recep_vals):
         for pos_pair in tqdm(recep_vals[5:]): #TODO
+        # for pos_pair in tqdm(recep_vals[9:]): #TODO
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
             view_point_positions = pos_pair["view_point_positions"]
@@ -313,13 +325,12 @@ def eval_place_policy(
                 
                 ''' 执行完毕,获取数据 '''
                 # NOTE 需要在env._reset_stats之前，记录位姿信息
-                place_success = get_place_success(hab_info)
+                place_success, other_info = get_place_success(hab_info)
                 if debug:
                     print(f"place success is {place_success}")
                 
                 # 记录数据
-                total_data[data_key] = place_success
-                # TODO 这样记录对于复现还是很难
+                total_data[data_key] = {"place_success":place_success,**other_info}
                 data_num += 1
                 success_num += place_success
 
@@ -328,9 +339,9 @@ def eval_place_policy(
                 # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标（现在记录绝对坐标，因此不需要重新计算）
                 done = False
 
-            # '''运行完一个episode 的一个recep位置，保存数据''' #TODO
-            # with open(os.path.join(data_dir,"success.json"),"w") as f:
-            #     json.dump(total_data,f,indent=2)
+            '''运行完一个episode 的一个recep位置，保存数据'''
+            with open(os.path.join(data_dir,f"{prefix}_success.json"),"w") as f:
+                json.dump(total_data,f,indent=2)
             
         print_progress(count_episodes, num_episodes, prefix='count_episodes: %d/%d'%((count_episodes),num_episodes))
         if count_episodes == num_episodes:
@@ -408,6 +419,12 @@ if __name__ == "__main__":
         choices=["baseline", "zxy_pick_place"],
         help="Agent to evaluate",
     )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default='',
+        help= 'the file prefix num'
+    )
     args = parser.parse_args()
 
     if args.keep_nonrepeat_episode:
@@ -432,7 +449,7 @@ if __name__ == "__main__":
     baseline_config = get_omega_config(args.baseline_config_path)
     # merge env config and baseline config to create agent config
     agent_config = create_agent_config(env_config, baseline_config)
-    device_id = 1
+    device_id = 0
     # agent = PlaceAgent(agent_config, device_id=device_id)
     if args.agent_type == "baseline":
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
@@ -449,5 +466,5 @@ if __name__ == "__main__":
     # receptacle_position_aggregate(args.data_dir, env)
 
     # # Generate images of receptacles by episode
-    eval_place_policy(data_dir, env, agent, args.manual)
+    eval_place_policy(data_dir, env, agent, args.manual, args.prefix)
 

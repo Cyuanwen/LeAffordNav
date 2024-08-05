@@ -231,7 +231,7 @@ class psl_agent(object):
         set target object
         '''
         target = self.vocab[target_idx]
-        assert target in recep_category_21, "the target not in receptacle categories"
+        assert target in recep_category_21, f"the target {target} not in receptacle categories {recep_category_21}"
         self.target = target
         target_idx = recep_category_21_to_idx[target]
 
