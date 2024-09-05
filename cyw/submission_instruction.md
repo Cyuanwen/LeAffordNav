@@ -85,6 +85,7 @@ docker commit -m "ovmm_baseline_submission" -a "cyw" ovmm_baseline_submission_v4
 ovmm_baseline_submission_v4_cmd 为新镜像名称
 
 ### 测试镜像
+projects/habitat_ovmm 目录下
 ```
 ./scripts/test_local_cyw.sh --docker-name ovmm_baseline_submission_v4_cmd --split minival
 ```
@@ -149,6 +150,11 @@ evalai push ovmm_baseline_submission_v4_cmd:latest --phase neurips-ovmm-test-sta
 代码中如果添加新的模型，数据，请在 projects/habitat_ovmm/docker/ovmm_baseline_2024.Dockerfile 里面 添加 docker镜像配置命令，并添加注释说明
 
 conda 环境如果安装新 package 请在 projects/habitat_ovmm/docker/ovmm_baseline_2024.Dockerfile 里面 添加安装命令，并添加注释说明
+
+添加的数据、模型不要放在./data文件夹下，因为该文件夹后续会用来挂载数据
+
+24年提交网址：https://eval.ai/web/challenges/challenge-page/2278/phases
+
 
 
 

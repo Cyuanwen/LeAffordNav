@@ -28,6 +28,9 @@ from habitat.utils.visualizations import maps
 from typing import Optional, Tuple
 from scipy.ndimage import gaussian_filter
 import home_robot.utils.pose as pu
+import home_robot.utils.depth as du
+from home_robot.utils.image import smooth_mask
+import torch
 
 debug = True
 visualize = True
@@ -125,7 +128,7 @@ def gather_success_end_position(data):
     '''
     end_position_s = []
     for item in data:
-        if item["place_success"]:
+        if item["place_success"] and item["nav2place"]:
             end_position_s.append(item['end_position'])
     return end_position_s
     
@@ -180,7 +183,7 @@ class map_prepare:
         self.semmap_resolution = getattr(agent_config.AGENT.SEMANTIC_MAP,"map_resolution",None)
         assert self.top_down_resolution == self.semmap_resolution, "the map resolution is not the same"
         self.map_bound_meter = 8 # 取机器人多少米范围的地图作为局部地图，单位：m
-        self.gau_sigma = 2 # 高斯平滑的sigma参数
+        self.gau_sigma = 1 # 高斯平滑的sigma参数
         self.grid_bound = int(self.map_bound_meter*100/self.semmap_resolution)
         self.localmap_agent_pose = [self.grid_bound//2,self.grid_bound//2]
         self.map_size = [(self.grid_bound//2)*2,(self.grid_bound//2)*2]
@@ -370,10 +373,105 @@ class map_prepare:
         ] = travisible_map[local_bound_u:local_bound_b,local_bound_l:local_bound_r]
         return map_obs_coord
 
+"""点云数据处理"""
+def get_target_point_cloud_base_coords(
+    config,
+    device,
+    depth,
+    target_mask: np.ndarray,
+):
+    """Get point cloud coordinates in base frame"""
+    goal_rec_depth = torch.tensor(
+        depth, device=device, dtype=torch.float32
+    ).unsqueeze(0)
 
+    camera_matrix = du.get_camera_matrix(
+        config.ENVIRONMENT.frame_width,
+        config.ENVIRONMENT.frame_height,
+        config.ENVIRONMENT.hfov,
+    )
+    # Get object point cloud in camera coordinates
+    pcd_camera_coords = du.get_point_cloud_from_z_t(
+        goal_rec_depth, camera_matrix, device, scale=1
+    )
 
-        
+    # Agent height comes from the environment config
+    agent_height = torch.tensor(1.3188)
 
+    # Object point cloud in base coordinates
+    pcd_base_coords = du.transform_camera_view_t(
+        pcd_camera_coords, agent_height, -30, device
+    ) # pcd_base_coords 坐标每一个元素是 （x,y,z） x轴为右，y轴为前，z轴为上
+
+    non_zero_mask = torch.stack(
+        [torch.from_numpy(target_mask).to(device)] * 3, axis=-1
+    )
+    pcd_base_coords = pcd_base_coords * non_zero_mask
+
+    return pcd_base_coords[0]
+
+def get_recep_mask(semantic,depth,rgb=None):
+    '''
+        get recep mask
+    '''
+    goal_rec_mask = (
+        semantic
+        == 3 * du.valid_depth_mask(depth)
+    ).astype(np.uint8)
+    # Get dilated, then eroded mask (for cleanliness)
+    erosion_kernel= np.ones((5, 5), np.uint8)
+    goal_rec_mask = smooth_mask(
+        goal_rec_mask, erosion_kernel, num_iterations=5
+    )[1]
+    # Convert to booleans
+    goal_rec_mask = goal_rec_mask.astype(bool)
+    # @cyw
+    if np.sum(goal_rec_mask*1.0) < 50:
+        goal_rec_mask = np.ones_like(goal_rec_mask)
+    return goal_rec_mask
+
+# 点云归一化
+def FindMaxDis(pointcloud):
+    max_xyz = pointcloud.max(0)
+    min_xyz = pointcloud.min(0)
+    center = (max_xyz + min_xyz) / 2
+    max_radius = ((((pointcloud - center)**2).sum(1))**0.5).max()
+    return max_radius, center
+
+def WorldSpaceToBallSpace(pointcloud):
+    """
+    change the raw pointcloud in world space to united vector ball space
+    return: max_radius: the max_distance in raw pointcloud to center
+            center: [x,y,z] of the raw center
+    # @cyw
+    input: N * 3
+    """
+    max_radius, center = FindMaxDis(pointcloud)
+    pointcloud_normalized = (pointcloud - center) / max_radius
+    return pointcloud_normalized, max_radius, center
+
+def farthest_point_sample(point, npoint):
+    """
+    Input:
+        xyz: pointcloud data, [N, D]
+        npoint: number of samples
+    Return:
+        centroids: sampled pointcloud index, [npoint, D]
+    """
+    N, D = point.shape
+    xyz = point[:,:3]
+    centroids = np.zeros((npoint,))
+    distance = np.ones((N,)) * 1e10
+    farthest = np.random.randint(0, N)
+    for i in range(npoint):
+        centroids[i] = farthest
+        centroid = xyz[farthest, :]
+        dist = np.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = np.argmax(distance, -1)
+    point = point[centroids.astype(np.int32)]
+    return point
 
 
 

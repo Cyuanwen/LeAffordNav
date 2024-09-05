@@ -83,7 +83,8 @@ from habitat.utils.visualizations import maps
 import json
 # from cyw.goal_point.utils import get_relative_position
 # cyw/goal_point/data_prepare.py
-from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+# from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+from cyw.goal_point.visualize import visual_obstacle_map,visual_init_obstacle_map
 from tqdm import tqdm
 from pathlib import Path
 import sys

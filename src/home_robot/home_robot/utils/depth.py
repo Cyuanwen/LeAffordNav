@@ -77,6 +77,25 @@ def get_point_cloud_from_z_t(Y_t, camera_matrix, device, scale=1):
     # 除非一个像素代表1cm?确实是一个像素代表1cm
 
 
+# def transform_camera_view_t(XYZ, sensor_height, camera_elevation_degree, device):
+#     """
+#     Transforms the point cloud into geocentric frame to account for
+#     camera elevation and angle
+#     Input:
+#         XYZ                     : ...x3
+#         sensor_height           : height of the sensor
+#         camera_elevation_degree : camera elevation to rectify.
+#     Output:
+#         XYZ : ...x3
+#     """
+#     R = ru.get_r_matrix([1.0, 0.0, 0.0], angle=np.deg2rad(camera_elevation_degree))
+#     XYZ = torch.matmul(
+#         XYZ.reshape(-1, 3), torch.from_numpy(R).float().transpose(1, 0).to(device)
+#     ).reshape(XYZ.shape)
+#     XYZ[..., 2] = XYZ[..., 2] + sensor_height
+#     return XYZ
+
+# @cyw 修改过，旋转矩阵似乎不对
 def transform_camera_view_t(XYZ, sensor_height, camera_elevation_degree, device):
     """
     Transforms the point cloud into geocentric frame to account for
@@ -89,6 +108,7 @@ def transform_camera_view_t(XYZ, sensor_height, camera_elevation_degree, device)
         XYZ : ...x3
     """
     R = ru.get_r_matrix([1.0, 0.0, 0.0], angle=np.deg2rad(camera_elevation_degree))
+    # 相机坐标系下的坐标相对于世界坐标系旋转了 camera_elevation_degree ，世界坐标系相对于相机坐标系应该是 -camera_elevation_degree
     XYZ = torch.matmul(
         XYZ.reshape(-1, 3), torch.from_numpy(R).float().transpose(1, 0).to(device)
     ).reshape(XYZ.shape)

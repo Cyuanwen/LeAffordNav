@@ -64,6 +64,8 @@ class DiscretePlanner:
         map_downsample_factor: float = 1.0,
         map_update_frequency: int = 1,
         goal_tolerance: float = 0.01,
+        # @cyw
+        # goal_tolerance: float = 5, # 以5cm为单位
         discrete_actions: bool = True,
         continuous_angle_tolerance: float = 30.0,
     ):

@@ -64,6 +64,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
     """Simple object nav agent based on a 2D semantic map."""
 
     def __init__(self, config, device_id: int = 0):
+        # @cyw
+        # super().__init__(config, device_id=device_id,get_timing=True)
         super().__init__(config, device_id=device_id)
         self.states = None
         self.place_start_step = None
@@ -113,7 +115,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         # @cyw
         elif config.AGENT.SKILLS.PLACE.type == "heuristic_cyw" and not self.skip_skills.place:
             self.place_policy = HeuristicPlacePolicy_cyw(
-                config, self.device, verbose=self.verbose
+                config, self.device, verbose=self.verbose,debug_visualize_xyz=False
             )
         elif config.AGENT.SKILLS.PLACE.type == "rl" and not self.skip_skills.place:
             from home_robot.agent.ovmm_agent.ppo_agent import PPOAgent
@@ -137,6 +139,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             from home_robot.navigation_policy.gaze.gaze_policy import gaze_rec_policy
             self.gaze_policy = gaze_rec_policy(
                 config=config,
+                device=self.device
             )
             # TODO 代码确定后,将可视化去掉
         if (
@@ -312,7 +315,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
 
     def _switch_to_next_skill(
-        self, e: int, next_skill: Skill, info: Dict[str, Any]
+        self, e: int, next_skill: Skill, info: Dict[str, Any], obs
     ) -> DiscreteNavigationAction:
         """Switch to the next skill for environment `e`.
 
@@ -352,6 +355,8 @@ class OpenVocabManipAgent(ObjectNavAgent):
             self.place_start_step[e] = self.timesteps[e]
         elif next_skill == Skill.FALL_WAIT:
             self.fall_wait_start_step[e] = self.timesteps[e]
+            # @cyw
+            self.last_obs = obs
         self.states[e] = next_skill
         # @cyw
         # 保证psl与detic的词汇一致
@@ -436,10 +441,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.timesteps[0] -= 1  # objectnav agent increments timestep
         # 因为在act的函数里面还会加一次，所以，这里减回去
         info["timestep"] = self.timesteps[0]
-        if action == DiscreteNavigationAction.STOP:
-            terminate = True
-        else:
-            terminate = False
+        # if action == DiscreteNavigationAction.STOP:
+        #     terminate = True
+        # else:
+        #     terminate = False
+        terminate = False
         return action, info, terminate
 
     # @cyw
@@ -452,9 +458,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
         gaze_step = self.timesteps[0] - self.gaze_recep_start_step[0]
         if not self.gaze_goal: # TODO 也可以把if条件去掉,如果预测的地图比较稳定的话
         # 地图一直在调整,可能是为了让agent位于地图中间?所以需要goal也跟着地图做调整
-            gaze_goal_map = self.gaze_policy.act(info)
+            gaze_goal_map = self.gaze_policy.act(info,obs)
             if gaze_goal_map is not None:
-                self.semantic_map.set_global_goal_for_env(0, global_goal= None,                local_goal=gaze_goal_map)
+                self.semantic_map.set_global_goal_for_env(0, global_goal= None, local_goal=gaze_goal_map)
                 self.gaze_goal = True
             # info只在第一步的时候包含信息
             # NOTE 配置文件中 getattr(config.AGENT,"collect_end_recep",False)需要为True
@@ -486,6 +492,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 terminate = False
             else:
                 action, planner_info = super().act(obs) # 即使这样也没有完全朝向容器
+                # 或许不应该调用nav来完成朝向容器？
                 if action == DiscreteNavigationAction.STOP:
                     terminate = True
                     self.gaze_goal = False
@@ -563,7 +570,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
     def _look_around(
         self, obs: Observations, info: Dict[str, Any]
     )->Tuple[DiscreteNavigationAction, Any, Optional[Skill]]:
-        if self.skip_skills.look_around:
+        if getattr(self.skip_skills,"look_around",False):
             terminate = True
         else:
             action, info, terminate = self._look_around_map(obs, info)
@@ -575,6 +582,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             elif info["timestep"]==self.episode_panorama_start_steps+2:
                 action = None
                 new_state = Skill.NAV_TO_OBJ
+                terminate = True
         if terminate:
             action = None
             new_state = Skill.NAV_TO_OBJ
@@ -757,7 +765,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             self._init_episode(obs,current_episode_key)
             
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
-            obs = self.semantic_sensor(obs)
+            # @cyw
+            if not self.states[0] == Skill.FALL_WAIT:
+                obs = self.semantic_sensor(obs)
+            else:
+                obs.semantic = self.last_obs.semantic
         else:
             obs.task_observations["semantic_frame"] = None
             
@@ -812,7 +824,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 assert (
                     action is None
                 ), f"action must be None when switching states, found {action} instead"
-                action = self._switch_to_next_skill(0, new_state, info)
+                action = self._switch_to_next_skill(0, new_state, info, obs)
         # update the curr skill to the new skill whose action will be executed
         info["curr_skill"] = Skill(self.states[0].item()).name
         if self.verbose:

@@ -1,0 +1,2 @@
+
+python cyw/goal_point/get_point_cloud.py --data_dir cyw/datasets/place_dataset/val/heuristic_agent_esc_yolo_place_cyw --baseline_config_path cyw/configs/agent/heuristic_agent_place.yaml --env_config_path cyw/configs/env/hssd_eval_gtseg.yaml habitat.dataset.split=train +habitat/task/measurements@habitat.task.measurements.top_down_map=top_down_map +habitat.task.measurements.top_down_map.meters_per_pixel=0.05

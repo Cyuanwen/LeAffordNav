@@ -11,6 +11,7 @@
 实现过程：参考 src/home_robot/home_robot/manipulation/heuristic_place_policy.py
 在第一步的时候记录 goal点，并设置为类参数，之后的步数调用nav_planner算法即可
 
+updata: 使用新的模型，有point cloud data 作为输入
 '''
 import torch
 from loguru import logger
@@ -27,11 +28,17 @@ from home_robot.core.interfaces import (
 )
 # from .unet import UNet # TODO 调试完毕改为简洁模式
 from home_robot.navigation_policy.gaze.unet import UNet
+from home_robot.navigation_policy.gaze.pointnet_unet.pointunet_model import PointUNet
+
 import sys
-sys.path.append("/raid/home-robot/")
-sys.path.append("/raid/home-robot/projects")
+import os
+home_root = os.environ.get('HOME_ROBOT_ROOT')
+sys.path.append(home_root)
+sys.path.append(f"{home_root}/projects")
 from cyw.goal_point.utils import map_prepare
 from cyw.goal_point.visualize import vis_local_map,visual_init_obstacle_map_norotation
+# from cyw.goal_point.get_point_cloud import get_recep_mask, WorldSpaceToBallSpace,get_target_point_cloud_base_coords, farthest_point_sample
+from cyw.goal_point.utils import get_recep_mask, WorldSpaceToBallSpace,get_target_point_cloud_base_coords, farthest_point_sample
 from habitat_ovmm.utils.config_utils import create_env_config, get_habitat_config, get_omega_config,create_agent_config
 import pickle
 
@@ -50,21 +57,29 @@ class gaze_rec_policy:
     def __init__(
         self,
         config,
-        debug_vis:bool=False,
+        device,
+        model_type:str="PointUNet", # choose from PointUNet and UNet
         verbose:bool=True,
+        pointnet_ckp:str="cyw/data/cyw/targert_map_pred/pointnet2_ssg_wo_normals_checkpoints/best_model.pth"
     ) -> None:
         self.map_prepare = map_prepare(config)
         # 加载模型 参考 https://lightning.ai/docs/pytorch/stable/deploy/production_intermediate.html
-        self.unet = UNet(n_channels=2,n_classes=1,bilinear=False)
+        if model_type == "PointUNet":
+            self.model = PointUNet(ckp_path=pointnet_ckp,map_encoder_trainable=True)
+        elif model_type == "UNet":
+            self.model = UNet(n_channels=2,n_classes=1,bilinear=False)
         ckp_path = config.AGENT.SKILLS.GAZE_OBJ.checkpoint_path
         ckpt = torch.load(ckp_path)
         model_weights = ckpt["state_dict"]
         # update keys by dropping `auto_encoder.`
         for key in list(model_weights):
             model_weights[key.replace("model.", "")] = model_weights.pop(key)
-        self.unet.load_state_dict(model_weights)
-        self.unet.eval()
-        self.debug_vis = debug_vis
+        self.model.load_state_dict(model_weights)
+        self.model.eval()
+        self.model.to(device)
+        self.model_type = model_type
+        self.config = config
+        self.device = device
         self.verbose = verbose
         self.time_step = 0
 
@@ -72,8 +87,35 @@ class gaze_rec_policy:
         # self.time_step = 0
         pass
 
+    def get_pcd(self,obs: Observations):
+        '''
+            从 obs 中获得点云，归一化
+        '''
+        semantic = obs.semantic
+        depth = obs.depth
+        recep_semantic = get_recep_mask(
+            semantic=semantic,
+            depth=depth,
+            )
+        pcd_base_coords = get_target_point_cloud_base_coords(
+            self.config,
+            self.device,
+            depth=depth,
+            target_mask=recep_semantic
+        )
+        pcd_base_coords = pcd_base_coords.cpu().numpy() # (640,480,3)
+        # 下采样
+        pcd_base_coords = pcd_base_coords[::4,::4,:]
+        # 归一化  
+        pcd_base_coords = pcd_base_coords.reshape((-1,3))      
+        pcd_base_coords, _, _ = WorldSpaceToBallSpace(pcd_base_coords)
+        # 全部点输入爆内存，参考 https://github.com/yanx27/Pointnet_Pointnet2_pytorch
+        pcd_base_coords = farthest_point_sample(pcd_base_coords, 1024)
+        return pcd_base_coords
+
     def act(self,
-        info
+        info,
+        obs:Observations,
     ):
         '''将机器人移到适合交互的位置,并朝向recep
             Returns:
@@ -103,7 +145,23 @@ class gaze_rec_policy:
         input_map = torch.stack((loacal_obstacle,loacal_recep_map),axis=0)
         input_map = input_map.squeeze(dim=1)
         input_map = input_map.unsqueeze(dim=0)
-        local_goal_map = self.unet(input_map)
+        input_map = input_map.to(torch.device(self.device))
+        if self.model_type == "PointUNet":
+            # 输入数据要求
+            # 'map': map_data,
+            # 'pcd_coords': data['pcd_base_coord_s']
+            pcd_coords = self.get_pcd(obs)
+            pcd_coords = torch.from_numpy(pcd_coords)
+            pcd_coords = pcd_coords.unsqueeze(dim=0)
+            pcd_coords = pcd_coords.to(torch.device(self.device))
+            input = {
+                'map': input_map,
+                'pcd_coords': pcd_coords
+            }
+            local_goal_map = self.model(input)
+        elif self.model_type == "UNet":
+            local_goal_map = self.model(input_map)
+
         local_goal_map = torch.sigmoid(local_goal_map)
         local_goal_map = (local_goal_map > THRESHOLD).float() # 1,1,w, h
         if local_goal_map.sum()==0:
@@ -117,7 +175,7 @@ class gaze_rec_policy:
         )
         # goal_map = np.expand_dims(goal_map,axis=0) # 1, w, h
          # visualize
-        if self.debug_vis and (show_image or save_image):
+        if show_image or save_image:
             print("*********calculate image************")
             local_map_vis = vis_local_map(
                 local_map=loacal_obstacle.cpu().numpy(),
@@ -154,7 +212,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--baseline_config_path",
         type=str,
-        default="cyw/configs/debug_config/agent/heuristic_agent_nav_place.yaml",
+        # default="cyw/configs/debug_config/agent/heuristic_agent_nav_place.yaml",
+        default="cyw/configs/agent/heuristic_agent_esc_yolo_nav_gaze_place_cyw.yaml",
         help="Path to config yaml",
     )
     args = parser.parse_args()
@@ -175,7 +234,13 @@ if __name__ == "__main__":
 
     gaze_policy = gaze_rec_policy(
                 config=agent_config,
+                device="cuda:1"
             )
-    with open("cyw/test_data/place_policy/info.pkl","rb") as f:
+    # with open("cyw/test_data/place_policy/info.pkl","rb") as f:
+    #     info = pickle.load(f)
+    with open("cyw/test_data/place_point/info.pkl","rb") as f:
         info = pickle.load(f)
-    gaze_policy.act(info)
+    with open("cyw/test_data/place_point/obs.pkl","rb") as f:
+        obs = pickle.load(f)
+    
+    gaze_policy.act(info,obs)

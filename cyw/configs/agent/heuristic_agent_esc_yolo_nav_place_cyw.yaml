@@ -6,6 +6,7 @@ fall_wait_steps: 200    # number of steps to wait after the object has been drop
 # fall_wait_steps: 10    # number of steps to wait after the object has been dropped
 store_all_categories: False  # whether to store all semantic categories in the map or just task-relevant ones
 detection_module: yolo # the detector to use for perception in case ground_truth_semantics are turned off
+collect_end_recep: True # 是否收集end recep的数据
 
 VISION:
   confidence_threshold: 0.45 # detic object detection confidence threshold

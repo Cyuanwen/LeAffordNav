@@ -78,7 +78,7 @@ BUILDIN_METADATA_PATH = {
     "coco": "coco_2017_val",
 }
 
-YOLO_CHECKPOINT_FILE = "data/models/perception/train/weights/best.pt"
+YOLO_CHECKPOINT_FILE = "cyw/data/models/perception/train/weights/best.pt"
 RECORD_PATH_FILE = '/raid/home-robot/gyzp/output/detect_error/yolo_only'
 
 def get_clip_embeddings(vocabulary, prompt="a "):

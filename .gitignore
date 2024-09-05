@@ -28,6 +28,7 @@ datadump/
 !/src/home_robot/home_robot/datasets
 data/
 /models/
+grounded_sam/
 
 # Archive files
 *.pkl
@@ -66,10 +67,12 @@ data/***
 *.dae
 *.DAE
 
+
 # Detic and other torch model files
 *.pth
 *.ply
 *.pt
+*.safetensors
 
 # Training stuff
 projects/**/wandb

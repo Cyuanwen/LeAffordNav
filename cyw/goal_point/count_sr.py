@@ -7,7 +7,7 @@ import os
 import json
 
 # 对比来看,原本的策略更好一些
-pkl_dir = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place/place_waypoint.pkl"
+pkl_dir = "cyw/datasets/place_dataset/val/heuristic_agent_esc_yolo_place_cyw/multi_thread/place_waypoint_6.pkl"
 # pkl_dir = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place_initial/place_waypoint.pkl"
 
 parent_dir = str(Path(pkl_dir).resolve().parent)

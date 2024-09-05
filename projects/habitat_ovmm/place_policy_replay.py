@@ -40,7 +40,8 @@ from habitat.utils.visualizations import maps
 import json
 # from cyw.goal_point.utils import get_relative_position
 # cyw/goal_point/data_prepare.py
-from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+# from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+from cyw.goal_point.visualize import visual_obstacle_map,visual_init_obstacle_map
 from tqdm import tqdm
 from pathlib import Path
 import sys
@@ -236,6 +237,22 @@ def str2array(str_data):
     data_array = np.array(data_list).astype(np.float32)
     return data_array
 
+class collision_checker:
+    def __init__(self) -> None:
+        self.collision_time = 0
+    
+    def reset(self):
+        self.collision_time = 0
+    
+    def check_collision(self, hab_info):
+        '''
+            hab_info['robot_collisions']['robot_scene_colls']
+        '''
+        if hab_info['robot_collisions']['robot_scene_colls']>self.collision_time:
+            print(f"collision! the collision time is {hab_info['robot_collisions']['robot_scene_colls']-self.collision_time}")
+            self.collision_time = hab_info['robot_collisions']['robot_scene_colls']
+
+
 def replay_place_policy(
     env: HabitatOpenVocabManipEnv, 
     agent,
@@ -258,11 +275,14 @@ def replay_place_policy(
     data_num = 0
     success_num = 0
     nav_place_success_num = 0
+    # @cyw
+    col_ck = collision_checker()
     while True:
         # Get a new episode
         # obs = env.reset()
         observations, done = env.reset(), False #跳转到下一个episode
-        episode = env.get_current_episode()
+        observations, done = env.reset(), False  #TODO
+        episode = env.get_current_episode() # NOTE debug 到 1153
         replay_data_ep = replay_data[episode.episode_id]
         scene_id = extract_scene_id(episode.scene_id)
         agent.reset()
@@ -279,8 +299,9 @@ def replay_place_policy(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
         recep = observations.task_observations['place_recep_name']
-        recep_vals = replay_data_ep.keys()
-        for recep_pos in tqdm(recep_vals):
+        recep_vals = list(replay_data_ep.keys())
+        # for recep_pos in tqdm(recep_vals):
+        for recep_pos in tqdm(recep_vals[-2:]): #TODO 
             print("**************new position ***************")
             view_point_positions = replay_data_ep[recep_pos]
             recep_position = str2array(recep_pos)
@@ -308,6 +329,8 @@ def replay_place_policy(
                         manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
                         action,info = convertManualInput(manual_step)
                     observations, done, hab_info = env.apply_action(action, info)
+                    # @cyw
+                    col_ck.check_collision(hab_info)
 
                 
                 ''' 执行完毕,获取数据 '''
@@ -324,6 +347,7 @@ def replay_place_policy(
                 nav_place_success_num += nav_place
 
                 agent.reset()
+                col_ck.reset()
                 env._reset_stats() # 重置一些状态，但不跳转到下一个episode
                 # 重置状态后，start_position 和star_rotation都会变换，因此，需要重新计算坐标（现在记录绝对坐标，因此不需要重新计算）
                 done = False

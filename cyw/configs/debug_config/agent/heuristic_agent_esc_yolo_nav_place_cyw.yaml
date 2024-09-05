@@ -6,6 +6,7 @@ radius: 0.05            # robot radius (in meters)
 fall_wait_steps: 10    # number of steps to wait after the object has been dropped
 store_all_categories: False  # whether to store all semantic categories in the map or just task-relevant ones
 detection_module: yolo # the detector to use for perception in case ground_truth_semantics are turned off
+collect_end_recep: True # 是否收集end recep的数据
 
 VISION:
   confidence_threshold: 0.45 # detic object detection confidence threshold
@@ -187,8 +188,8 @@ PLANNER:
   map_downsample_factor: 1            # optional downsampling of traversible and goal map before fmm distance call (1 for no downsampling, 2 for halving resolution)
   map_update_frequency: 1             # compute fmm distance map every n steps 
   discrete_actions: True         # discrete motion planner output space or not
-  verbose: False                 # display debug information during planning
-  # verbose: True
+  # verbose: False                 # display debug information during planning
+  verbose: True
   planner_type: "old"             # ("old", "new") where "new" is the latest one being used for spot in real world
 
 # @cyw

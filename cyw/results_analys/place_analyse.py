@@ -39,39 +39,60 @@ def get_replay_set(data_A, data_B):
                 replay_data[episode][recep_pos].append(waypoint)
     return replay_data
 
-def get_set(data_A,fail=True,key_name=None):
+def get_set(data_A,fail=True,key_name=None,condition_fn=None):
     '''
         找出data_A中失败的例子，找找原因
         fail: 如果是True,找出失败的例子，否则，找出成功的例子
     '''
     replay_data = {}
-    for item_A in tqdm(data_A):
+    if condition_fn is not None:
+        for item_A in tqdm(data_A):
+            condition_satisify = condition_fn(data_A[item_A])
+            if condition_satisify:
+                data_keys = item_A.split("_")
+                episode = data_keys[-3]
+                recep_pos = data_keys[-2]
+                waypoint = data_keys[-1]
+                if episode not in replay_data:
+                    replay_data[episode] = {recep_pos:[waypoint]}
+                if recep_pos not in replay_data[episode]:
+                    replay_data[episode][recep_pos] = [waypoint]
+                replay_data[episode][recep_pos].append(waypoint)
+    else:
         if fail:
             condition = 0
         else:
             condition =1
-        if key_name == None:
-            condition_satisify = data_A[item_A] == condition
-        else:
-            condition_satisify = data_A[item_A][key_name] == condition
-        if condition_satisify:
-            data_keys = item_A.split("_")
-            episode = data_keys[-3]
-            recep_pos = data_keys[-2]
-            waypoint = data_keys[-1]
-            if episode not in replay_data:
-                replay_data[episode] = {recep_pos:[waypoint]}
-            elif recep_pos not in replay_data[episode]:
-                replay_data[episode][recep_pos] = [waypoint]
+        for item_A in tqdm(data_A):
+            if key_name == None:
+                condition_satisify = data_A[item_A] == condition
             else:
+                condition_satisify = data_A[item_A][key_name] == condition
+            if condition_satisify:
+                data_keys = item_A.split("_")
+                episode = data_keys[-3]
+                recep_pos = data_keys[-2]
+                waypoint = data_keys[-1]
+                if episode not in replay_data:
+                    replay_data[episode] = {recep_pos:[waypoint]}
+                if recep_pos not in replay_data[episode]:
+                    replay_data[episode][recep_pos] = [waypoint]
                 replay_data[episode][recep_pos].append(waypoint)
     return replay_data
+
+def get_collision_fail(item):
+    '''
+    获得由于碰撞而导致失败的例子
+        "robot_scene_colls": 2,
+        "ovmm_placement_stability": 1,
+    '''
+    return item['robot_scene_colls'] > 0 and item['ovmm_placement_stability']==1
 
 
 if __name__ == "__main__":
     compare = False
     fail =True
-    data_A_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_esc_yolo_nav_place/_success.json"
+    data_A_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_nav_place_cyw/v2_1_success.json"
     data_B_file = "cyw/datasets/place_dataset_debug/train/heuristic_agent_nav_place/success.json"
     with open(data_A_file,"r") as f:
         data_A = json.load(f)
@@ -85,12 +106,16 @@ if __name__ == "__main__":
         with open(save_dir,"wb") as f:
             pickle.dump(replay_data,f)
     else:
-        replay_data = get_set(data_A,fail=fail,key_name='place_success')
+        condition_fn = get_collision_fail
+        replay_data = get_set(data_A,fail=fail,key_name='place_success', condition_fn = condition_fn)
         file_A_policy = data_A_file.split("/")[-2]
-        if fail:
-            subfix = 'fail'
+        if condition_fn is not None:
+            subfix = 'get_collision_fail'
         else:
-            subfix = "success"
+            if fail:
+                subfix = 'fail'
+            else:
+                subfix = "success"
         save_dir = os.path.join(TEMP_DIR,f"{file_A_policy}_{subfix}.pkl")
         with open(save_dir,"wb") as f:
             pickle.dump(replay_data,f)

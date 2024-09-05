@@ -163,6 +163,44 @@ ovmm_nav_orient_to_place_succ is False
 
 子鹏采集的数据是不是有问题，离得远的很容易识别错？
 
+### 识别错误
+![Alt text](image-62.png)
+![Alt text](image-68.png)
+![Alt text](image-69.png) 把地板认为是couch（那不是地板，那是桌子）
+![Alt text](image-70.png) 认不出来couch (任何一个角度都认不出来，导致失败)
+![Alt text](image-75.png) 识别出来，但是选不到一个放置点？
+
+### 整条轨迹失败原因
+![Alt text](image-76.png) 导航到recep，但是放的时候没认出来，直接放空了（那个位置确实是容器？）
+#### 选的放置点不合理
+![Alt text](image-77.png) 
+![Alt text](image-78.png) 
+![Alt text](image-81.png) 
+
+
+![Alt text](image-79.png) 机械臂运动还是不太准确，还是放不下去
+![Alt text](image-80.png) 走到桌子旁边，识别不出桌子
+
+虽然调节了放置点，但似乎没起用？
+
+仿真器也有点问题，放在桌子中间都能给我滑下去！
+
+### 选的放置点很离谱
+![Alt text](image-63.png)
+![Alt text](image-71.png) 放置点选的太靠近障碍物，结果碰撞了
+![Alt text](image-72.png) 放置点选的太靠边
+![Alt text](image-73.png) 为啥总是选到边缘
+![Alt text](image-74.png)
+
+### 机械臂伸缩不准
+![Alt text](image-64.png) 机械臂伸得过长
+![Alt text](image-65.png) 机械臂伸得过长
+![Alt text](image-66.png) 机械臂伸过了
+
+### 开环执行可行性
+![Alt text](image-67.png) 识别模型效果略差，有时候走近了识别不出来，转一个角，突然又能识别出来了
+
+
 ## 一些实验结论
 1. choose placement point 如果加上 check_visiblility 效果很差，且会报错，具体可看
 cyw/datasets/place_dataset_debug/train/heuristic_agent_esc_yolo_gaze_place_cyw/_success.json

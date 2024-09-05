@@ -10,8 +10,10 @@ from habitat.utils.visualizations import maps
 import home_robot.utils.visualization as vu
 
 import sys
-sys.path.append("/raid/home-robot")
-sys.path.append("/raid/home-robot/projects")
+import os
+home_root = os.environ.get('HOME_ROBOT_ROOT')
+sys.path.append(home_root)
+sys.path.append(f"{home_root}/projects")
 from cyw.goal_point.utils import map_prepare, transform2relative,to_grid
 from habitat_ovmm.utils.config_utils import create_env_config, get_habitat_config, get_omega_config,create_agent_config
 

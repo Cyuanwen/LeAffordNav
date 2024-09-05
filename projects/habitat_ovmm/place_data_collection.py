@@ -34,8 +34,9 @@ TODO
 大概估计一下运行完所有episode需要的时间
 或许抽一部分 view_point采集数据？
 view_point_position_s采集似乎不对?哪里不对？
-统计每个容器的sr，实际部署时，选择哪些sr更高的容器作为目标容器
+统计每个容器的sr，实际部署时，选择哪些sr更高的容器作为目标容器（难以实现）
 不应该用gt seg来收集数据
+纳入nav2goal作为评价指标
 
 DONE
 先测试相对位置变化关系，然后将容器位置转换为GPS
@@ -89,21 +90,24 @@ from habitat.utils.visualizations import maps
 import json
 # from cyw.goal_point.utils import get_relative_position
 # cyw/goal_point/data_prepare.py
-from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+# from cyw.goal_point.data_prepare import visual_obstacle_map,visual_init_obstacle_map
+from cyw.goal_point.visualize import visual_obstacle_map,visual_init_obstacle_map
 from tqdm import tqdm
 from pathlib import Path
 import sys
+import time
 
 import random
 
 random.seed(1234)
 collect_fail_prob = 1 # TODO 当失败时，以collect_fail_prob的概率采集数据 
-view_point_num = 10 # 采样 view_point_num 个点来交互
+# view_point_num = 10 # 采样 view_point_num 个点来交互
 
 # src/home_robot_sim/home_robot_sim/env/habitat_objectnav_env/visualizer.py
 show_map_image = False
 show_image = False
-debug = True
+debug = False
+get_timing = False
 
 def get_semantic_vis(semantic_map, palette=d3_40_colors_rgb):
     semantic_map_vis = Image.new(
@@ -149,7 +153,8 @@ def get_place_success(hab_info):
     #     episode_metrics["END.robot_collisions.robot_scene_colls"] == 0
     # ) * (episode_metrics["END.ovmm_place_success"] == 1)
     place_success = (hab_info['robot_collisions']['robot_scene_colls'] == 0) * (hab_info['ovmm_place_success'])
-    return place_success
+    nav2place = int(hab_info['ovmm_nav_to_place_succ'] and hab_info['ovmm_nav_orient_to_place_succ'])
+    return place_success,nav2place
 
 def convertManualInput(code):
     '''手动控制，将手动输入的代码转为动作
@@ -278,11 +283,15 @@ def gen_place_data(
     data_dir: str, 
     dataset_file: h5py.File,
     env: HabitatOpenVocabManipEnv, agent,
+    thread_num:int,
     manual=False,
     baseline_name:Optional[str]=None,
     append:bool=True, #TODO 是否在原本数据上追加数据
+    recep_pos_file:str='recep_position.pickle',
 ):
     """Generates images of receptacles by episode for all scenes"""
+    if append:
+        print("***************append the data *************")
 
     # sim = env.habitat_env.env._env._env._sim
     # @cyw
@@ -297,8 +306,8 @@ def gen_place_data(
         if f"scene_{scene_id}" not in dataset_file:
             dataset_file.create_group(f"scene_{scene_id}")
 
-    recep_pos_dir = str(Path(data_dir).resolve().parent)
-    with open(f"{recep_pos_dir}/recep_position.pickle", "rb") as handle:
+    recep_pos_dir = str(Path(data_dir).resolve().parent.parent)
+    with open(f"{recep_pos_dir}/{recep_pos_file}", "rb") as handle:
         receptacle_positions = pickle.load(handle)
 
     count_episodes = 0
@@ -307,7 +316,7 @@ def gen_place_data(
     if not append:
         total_data = []
     else:
-        with open(os.path.join(data_dir,"place_waypoint.pkl"),"rb") as f:
+        with open(os.path.join(data_dir,f"place_waypoint_{thread_num}.pkl"),"rb") as f:
             total_data = pickle.load(f)
     while True:
         # Get a new episode
@@ -345,7 +354,7 @@ def gen_place_data(
         }
         recep_vals = receptacle_positions[scene_id][recep]
         for pos_pair in tqdm(recep_vals):
-        # for pos_pair in tqdm(recep_vals[1:]): #TODO
+        # for pos_pair in tqdm(recep_vals[5:]): #TODO
             print("**************new position ***************")
             recep_position = np.array(pos_pair["recep_position"])
             if f"/scene_{scene_id}/ep_{episode.episode_id}/{recep_position}" not in dataset_file:
@@ -373,9 +382,9 @@ def gen_place_data(
             # for view_point_position in tqdm(view_point_positions):
             # 采样数据
             view_point_positions_list = list(view_point_positions)
-            if len(view_point_positions_list) > view_point_num:
-                view_point_positions_list = random.sample(view_point_positions_list,view_point_num)
-            # for view_point_position in tqdm(list(view_point_positions)[:2]): #TODO
+            # if len(view_point_positions_list) > view_point_num:
+            #     view_point_positions_list = random.sample(view_point_positions_list,view_point_num)
+            # for view_point_position in tqdm(view_point_positions_list[:1]): #TODO
             for view_point_position in tqdm(view_point_positions_list):
                 view_point_position = np.array(view_point_position).astype(np.float32)
                 start_position, start_rotation, _ = get_robot_spawns(
@@ -415,12 +424,20 @@ def gen_place_data(
                 map_id = 0
                 while not done:
                     if not manual:
-                        action, info, _ = agent.act(observations)
+                        if get_timing:
+                            t0 = time.time()
+                        action, info, obs_postprocess = agent.act(observations)
                         # sensor_pose: (7,) array denoting global pose (x, y, o) and local map boundaries planning window (gy1, gy2, gx1, gy2)
+                        if get_timing:
+                            t1 = time.time()
+                            print(f"[Agent] act time: {t1 - t0:.2f}")
                     else:
                         manual_step = input("Manual control ON. ENTER next agent step (a: RotateLeft, w: MoveAhead, d: RotateRight, s: Stop, u: LookUp, n: LookDown)")
                         action,info = convertManualInput(manual_step)
                     observations, done, hab_info = env.apply_action(action, info)
+                    if get_timing:
+                        t2 = time.time()
+                        print(f"[Env] act time: {t2 - t1:.2f}")
                     if debug:
                         print(f"action is {action}")
 
@@ -456,6 +473,9 @@ def gen_place_data(
                         start_obstacle_map=info["obstacle_map"]
                         start_sensor_pose = info["sensor_pose"]
                         end_recep_map = info['end_recep']
+
+                        '''获取semantic'''
+                        start_semantic = obs_postprocess.semantic
 
                         '''收集top down map 和 姿势'''
                         start_top_down_map=hab_info['top_down_map']['map']
@@ -528,7 +548,7 @@ def gen_place_data(
                 ''' 执行完毕,获取数据 '''
                 # NOTE 需要在env._reset_stats之前，记录位姿信息
                 end_position = np.array(env.get_current_position()).astype(np.float32)
-                place_success = get_place_success(hab_info)
+                place_success, nav2place = get_place_success(hab_info)
                 if debug:
                     print(f"place success is {place_success}")
                 
@@ -541,7 +561,10 @@ def gen_place_data(
                     print(f"record data ********************")
                     start_rgb_s.append(start_observations.rgb)
                     start_depth_s.append(start_observations.depth)
-                    start_semantic_s.append(start_observations.semantic)
+                    if start_observations.semantic is None:
+                        start_semantic_s.append(start_semantic)
+                    else:
+                        start_semantic_s.append(start_observations.semantic)
                     start_obstacle_map_s.append(start_obstacle_map)
                     start_top_down_map_s.append(start_top_down_map)
                     view_point_position_s.append(view_point_position)
@@ -554,6 +577,7 @@ def gen_place_data(
                             "relative_recep_position": relative_recep_gps,
                             "end_position": end_position,
                             "place_success": place_success,
+                            "nav2place": nav2place,
                             "start_sensor_pose": start_sensor_pose, # 在obstacle map里面的位置
                             "start_top_down_map_pose": start_top_down_map_pose,
                             "start_top_down_map_rot": start_top_down_map_rot
@@ -589,7 +613,7 @@ def gen_place_data(
         # 运行完一个episode,保存数据
         if not len(scene_ep_data["skill_waypoint_data"])==0:
             total_data.append(scene_ep_data)
-        with open(os.path.join(data_dir,"place_waypoint.pkl"),"wb") as f:
+        with open(os.path.join(data_dir,f"place_waypoint_{thread_num}.pkl"),"wb") as f:
             pickle.dump(total_data,f)
 
         dataset_file.flush()
@@ -666,10 +690,21 @@ if __name__ == "__main__":
         choices=["baseline", "zxy_pick_place"],
         help="Agent to evaluate",
     )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="whether to append the data in the exists file"
+    )
+    parser.add_argument(
+        "--thread_num",
+        type=int,
+        help="which thread to run"
+    )
     args = parser.parse_args()
 
+    thread_num = args.thread_num
     if args.keep_nonrepeat_episode:
-        with open(os.path.join(args.data_dir,"episode_ids.json"),"r") as f:
+        with open(os.path.join(args.data_dir,'split_episode',f"episode_ids_{thread_num}.json"),"r") as f:
             episode_ids = json.load(f)
         args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
 
@@ -690,7 +725,7 @@ if __name__ == "__main__":
     baseline_config = get_omega_config(args.baseline_config_path)
     # merge env config and baseline config to create agent config
     agent_config = create_agent_config(env_config, baseline_config)
-    device_id = 1
+    device_id = 0
     # agent = PlaceAgent(agent_config, device_id=device_id)
     if args.agent_type == "baseline":
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
@@ -698,10 +733,15 @@ if __name__ == "__main__":
         agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
 
     baseline_name = args.baseline_config_path.split("/")[-1].split(".")[0]
-    data_dir = os.path.join(args.data_dir,baseline_name)
+    data_dir = os.path.join(args.data_dir,baseline_name,'multi_thread')
     os.makedirs(f"./{data_dir}", exist_ok=True)
     # Create h5py files
-    dataset_file = h5py.File(f"./{data_dir}/{args.datafile}.hdf5", "r+") # NOTE 这会覆盖掉原本的文件 #TODO
+    if args.append and os.path.exists(os.path.join(data_dir,f"place_waypoint_{thread_num}.pkl")):
+        dataset_file = h5py.File(f"./{data_dir}/{args.datafile}_{thread_num}.hdf5", "r+") 
+        append = True
+    else:
+        dataset_file = h5py.File(f"./{data_dir}/{args.datafile}_{thread_num}.hdf5", "w")
+        append = False
 
     # Create an env
     env = create_ovmm_env_fn(env_config)
@@ -710,8 +750,7 @@ if __name__ == "__main__":
     # receptacle_position_aggregate(args.data_dir, env)
 
     # # Generate images of receptacles by episode
-    gen_place_data(data_dir,dataset_file, env, agent, args.manual)
-
+    gen_place_data(data_dir,dataset_file, env, agent, thread_num, args.manual,append=append, recep_pos_file='recep_position_cluster.pickle')
 
     # Close the h5py file
     dataset_file.close()

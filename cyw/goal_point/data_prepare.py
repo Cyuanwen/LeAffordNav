@@ -16,8 +16,10 @@ from habitat.utils.visualizations import maps
 import home_robot.utils.visualization as vu
 
 import sys
-sys.path.append("/raid/home-robot")
-sys.path.append("/raid/home-robot/projects")
+import os
+home_root = os.environ.get('HOME_ROBOT_ROOT')
+sys.path.append(home_root)
+sys.path.append(f"{home_root}/projects")
 from cyw.goal_point.utils import map_prepare, transform2relative,to_grid
 from habitat_ovmm.utils.config_utils import create_env_config, get_habitat_config, get_omega_config,create_agent_config
 
@@ -136,6 +138,9 @@ class data_prepare:
     def __init__(self,data_dir,env_config,agent_config) -> None:
         self.data_dir = data_dir
         self.map_prepare = map_prepare(agent_config=agent_config)
+        # self.h5py_dataset = h5py.File(os.path.join(data_dir,"data_out.hdf5"),"r+")
+        # with open(os.path.join(data_dir,"place_waypoint.pkl"),"rb") as f:
+        #     self.pkl_data = pickle.load(f)
         self.h5py_dataset = h5py.File(os.path.join(data_dir,"data_out.hdf5"),"r+")
         with open(os.path.join(data_dir,"place_waypoint.pkl"),"rb") as f:
             self.pkl_data = pickle.load(f)
@@ -154,10 +159,22 @@ class data_prepare:
             #     self.processed_dataset.create_group(f"scene_{scene_id}")
             # self.processed_dataset.create_group(f"/scene_{scene_id}/ep_{episode_id}/")
             # for each recep
+            recep_pos_h5py_s = list(self.h5py_dataset[f"/scene_{scene_id}/ep_{episode_id}/"].keys()) #不知道为什么，重新采集数据，两者有点对不上
             for recep_id,skill_waypoint_singile_recep_data in enumerate(skill_waypoint_data):
                 recep_position = skill_waypoint_singile_recep_data["recep_position"]
                 each_view_point_data = skill_waypoint_singile_recep_data["each_view_point_data"]
-                scene_ep_recep_grp = self.h5py_dataset[f"/scene_{scene_id}/ep_{episode_id}/{recep_position}"]
+                # scene_ep_recep_grp = self.h5py_dataset[f"/scene_{scene_id}/ep_{episode_id}/{recep_position}"]
+                scene_ep_recep_grp = None
+                for recep_position_h5py in recep_pos_h5py_s:
+                    recep_position_h5py_array = np.fromstring(recep_position_h5py.replace('[', '').replace(']', '').strip().replace('        ',',').replace('    ', ','), sep=',')
+                    if len(recep_position_h5py_array) != 3:
+                        print("debug")
+                    if np.allclose(recep_position,recep_position_h5py_array,atol=0.1): 
+                        scene_ep_recep_grp = self.h5py_dataset[f"/scene_{scene_id}/ep_{episode_id}/{recep_position_h5py}"]
+                        break
+                if scene_ep_recep_grp is None:
+                    print("no this data!")
+                    continue
                 # scene_ep_recep_grp_processed = self.processed_dataset.create_group(f"/scene_{scene_id}/ep_{episode_id}/{recep_position}")
                 # gather all success view_point and transfor to relative recep
                 recep_relative_pos, viewpoint_relative_pos = transform2relative(
@@ -171,14 +188,14 @@ class data_prepare:
                 local_end_recep_map_s = []
                 target_s = []
                 recep_coord_s = []
-                waypoint_s = []
+                # waypoint_s = []
                 # # concatanate的效率更高，所以直接使用concate，然后reshape
                 # view_point_position_s = np.reshape(scene_ep_recep_grp["view_point_position_s"],(len(recep_relative_pos),-1))
                 # start_top_down_map_s = np.reshape(scene_ep_recep_grp["start_top_down_map_s"],(len(recep_relative_pos),-1,scene_ep_recep_grp["start_top_down_map_s"].shape[-1]))
                 # start_obstacle_map_s = np.reshape(scene_ep_recep_grp["start_obstacle_map_s"],(len(recep_relative_pos),-1,scene_ep_recep_grp["start_obstacle_map_s"].shape[-1]))
 
                 view_point_position_s = scene_ep_recep_grp["view_point_position_s"]
-                start_top_down_map_s = scene_ep_recep_grp["start_top_down_map_s"]
+                # start_top_down_map_s = scene_ep_recep_grp["start_top_down_map_s"]
                 start_obstacle_map_s = scene_ep_recep_grp["start_obstacle_map_s"]
                 end_recep_map_s = scene_ep_recep_grp["end_recep_map_s"]
                 if show_img or save_img:
@@ -189,23 +206,26 @@ class data_prepare:
                     # view_point_position_h5py = scene_ep_recep_grp["view_point_position_s"][i] 
                     view_point_position_h5py = view_point_position_s[i]
                     view_point_position_pkl = each_view_point_data[i]['view_point_position']
-                    assert np.allclose(view_point_position_h5py, view_point_position_pkl,rtol=0.01),"the view point position is not equall"
-                    waypoint_s.append(view_point_position_pkl) #验证数据正确性使用
+                    # assert np.allclose(view_point_position_h5py, view_point_position_pkl,rtol=0.01),"the view point position is not equall"
+                    if not np.allclose(view_point_position_h5py, view_point_position_pkl,rtol=0.01):
+                        print("the view point position is not equall")
+                        continue
+                    # waypoint_s.append(view_point_position_pkl) #验证数据正确性使用
                     # get local top down map
                     # start_top_down_map = scene_ep_recep_grp["start_top_down_map_s"][i]
-                    start_top_down_map = start_top_down_map_s[i]
-                    start_top_down_map_pose = each_view_point_data[i]["start_top_down_map_pose"]
-                    start_top_down_map_rot = each_view_point_data[i]["start_top_down_map_rot"]
-                    rotated_top_down_map,_ = self.map_prepare.rotate_top_down_map(
-                        top_down_map=start_top_down_map,
-                        map_agent_pos=start_top_down_map_pose[0],
-                        map_agent_angle=start_top_down_map_rot[0]
-                    )
-                    local_rtdm = self.map_prepare.get_local_map(
-                        global_map=rotated_top_down_map,
-                        map_agent_pos=start_top_down_map_pose[0]
-                    )
-                    local_rtdm = np.flipud(local_rtdm)
+                    # start_top_down_map = start_top_down_map_s[i]
+                    # start_top_down_map_pose = each_view_point_data[i]["start_top_down_map_pose"]
+                    # start_top_down_map_rot = each_view_point_data[i]["start_top_down_map_rot"]
+                    # rotated_top_down_map,_ = self.map_prepare.rotate_top_down_map(
+                    #     top_down_map=start_top_down_map,
+                    #     map_agent_pos=start_top_down_map_pose[0],
+                    #     map_agent_angle=start_top_down_map_rot[0]
+                    # )
+                    # local_rtdm = self.map_prepare.get_local_map(
+                    #     global_map=rotated_top_down_map,
+                    #     map_agent_pos=start_top_down_map_pose[0]
+                    # )
+                    # local_rtdm = np.flipud(local_rtdm)
                     # NOTE 为了和obstacle对应，将 local_rtdm 上下翻转
                     # get_obstacle_map
                     # start_obstacle_map = scene_ep_recep_grp["start_obstacle_map_s"][i]
@@ -249,7 +269,7 @@ class data_prepare:
                         gau_filter=True
                     )
                     '''save data'''
-                    local_top_down_map_s.append(local_rtdm)
+                    # local_top_down_map_s.append(local_rtdm)
                     local_obstacle_map_s.append(loacal_rom)
                     local_end_recep_map_s.append(loacal_end_recep_map)
                     target_s.append(target_map)
@@ -260,48 +280,48 @@ class data_prepare:
                         # rgb
                         # rgb_vis = scene_ep_recep_grp["start_rgb_s"]
                         rgb_vis = start_rgb_s[i]
-                        # visualize initial top_down_map
-                        init_top_down_map_vis = visual_top_down_map(
-                            top_down_map=start_top_down_map,
-                            map_agent_coord=start_top_down_map_pose,
-                            map_agent_rot=start_top_down_map_rot,
-                        )
-                        top_down_map_vis = visual_rotated_top_down_map(
-                            top_down_map=start_top_down_map,
-                            map_agent_coord=start_top_down_map_pose,
-                            map_agent_rot=start_top_down_map_rot,
-                        )
-                        # rotated local top_down_map
-                        local_rtdm_vis = local_rtdm*255
-                        # initial obstacle map
-                        init_obstacle_map_vis = visual_init_obstacle_map(
-                            obstacle_map=start_obstacle_map,
-                            sensor_pose=start_sensor_pose
-                        )
-                        # flipup obstacle map
-                        obstacle_map_vis = visual_obstacle_map(
-                            obstacle_map=np.flipud(start_obstacle_map),
-                            sensor_pose=start_sensor_pose
-                        )
-                        # rotated local obstacle map
-                        loacal_rom_vis = loacal_rom *255
-                        # success view point
+                        # # visualize initial top_down_map
+                        # init_top_down_map_vis = visual_top_down_map(
+                        #     top_down_map=start_top_down_map,
+                        #     map_agent_coord=start_top_down_map_pose,
+                        #     map_agent_rot=start_top_down_map_rot,
+                        # )
+                        # top_down_map_vis = visual_rotated_top_down_map(
+                        #     top_down_map=start_top_down_map,
+                        #     map_agent_coord=start_top_down_map_pose,
+                        #     map_agent_rot=start_top_down_map_rot,
+                        # )
+                        # # rotated local top_down_map
+                        # local_rtdm_vis = local_rtdm*255
+                        # # initial obstacle map
+                        # init_obstacle_map_vis = visual_init_obstacle_map(
+                        #     obstacle_map=start_obstacle_map,
+                        #     sensor_pose=start_sensor_pose
+                        # )
+                        # # flipup obstacle map
+                        # obstacle_map_vis = visual_obstacle_map(
+                        #     obstacle_map=np.flipud(start_obstacle_map),
+                        #     sensor_pose=start_sensor_pose
+                        # )
+                        # # rotated local obstacle map
+                        # loacal_rom_vis = loacal_rom *255
+                        # # success view point
                         target_no_gau = self.map_prepare.get_target_map(
                             localmap_coord=target_coord, 
                             gau_filter=False
                         )
                         target_no_gau_vis = target_no_gau*255
                         target_map_vis = target_map * 255
-                        # recep_position
-                        target_map_recep_vis = np.copy(target_map_vis)
-                        target_map_recep_vis[recep_coord[0][0]-3:recep_coord[0][0]+4,recep_coord[1][0]-3:recep_coord[1][0]+4] = 255
-                        # 把机器人当前位置，recep position success viewpoint 都标记在obstacle map上 
-                        local_rom_recep_vis = loacal_rom.copy()
-                        local_rom_recep_vis = local_rom_recep_vis * 255
-                        local_rom_recep_vis = np.stack([local_rom_recep_vis,local_rom_recep_vis,local_rom_recep_vis],axis=-1)
-                        local_rom_recep_vis[recep_coord[0][0]-3:recep_coord[0][0]+4,recep_coord[1][0]-3:recep_coord[1][0]+4,:] = [255,0,0]
-                        local_rom_recep_vis[self.map_prepare.localmap_agent_pose[0]-3:self.map_prepare.localmap_agent_pose[0]+4,self.map_prepare.localmap_agent_pose[1]-3:self.map_prepare.localmap_agent_pose[1]+4,:] = [0,255,0]
-                        local_rom_recep_vis[target_map!=0] = [0,0,255]
+                        # # recep_position
+                        # target_map_recep_vis = np.copy(target_map_vis)
+                        # target_map_recep_vis[recep_coord[0][0]-3:recep_coord[0][0]+4,recep_coord[1][0]-3:recep_coord[1][0]+4] = 255
+                        # # 把机器人当前位置，recep position success viewpoint 都标记在obstacle map上 
+                        # local_rom_recep_vis = loacal_rom.copy()
+                        # local_rom_recep_vis = local_rom_recep_vis * 255
+                        # local_rom_recep_vis = np.stack([local_rom_recep_vis,local_rom_recep_vis,local_rom_recep_vis],axis=-1)
+                        # local_rom_recep_vis[recep_coord[0][0]-3:recep_coord[0][0]+4,recep_coord[1][0]-3:recep_coord[1][0]+4,:] = [255,0,0]
+                        # local_rom_recep_vis[self.map_prepare.localmap_agent_pose[0]-3:self.map_prepare.localmap_agent_pose[0]+4,self.map_prepare.localmap_agent_pose[1]-3:self.map_prepare.localmap_agent_pose[1]+4,:] = [0,255,0]
+                        # local_rom_recep_vis[target_map!=0] = [0,0,255]
                         # 可视化 end_recep_map
                         local_rom_recep_map_vis = loacal_rom.copy()
                         local_rom_recep_map_vis = local_rom_recep_map_vis * 255
@@ -310,9 +330,9 @@ class data_prepare:
                         local_rom_recep_map_vis[self.map_prepare.localmap_agent_pose[0]-3:self.map_prepare.localmap_agent_pose[0]+4,self.map_prepare.localmap_agent_pose[1]-3:self.map_prepare.localmap_agent_pose[1]+4,:] = [0,255,0]
                         local_rom_recep_map_vis[target_map!=0] = [0,0,255]
                         # 在top_down_map上可视化
-                        top_down_map_waypoint = visual_waypoint(top_down_map_vis,start_top_down_map_pose[0],recep_relative_pos[i],[5,5],[255,0,0])
-                        for single_viewpoint_pos in viewpoint_relative_pos[i]:
-                            top_down_map_waypoint = visual_waypoint(top_down_map_waypoint,start_top_down_map_pose[0],single_viewpoint_pos,[5,5],[0,0,255])
+                        # top_down_map_waypoint = visual_waypoint(top_down_map_vis,start_top_down_map_pose[0],recep_relative_pos[i],[5,5],[255,0,0])
+                        # for single_viewpoint_pos in viewpoint_relative_pos[i]:
+                        #     top_down_map_waypoint = visual_waypoint(top_down_map_waypoint,start_top_down_map_pose[0],single_viewpoint_pos,[5,5],[0,0,255])
                         ''' 
                         NOTE 需要验证的几个点：
                         1. whether rgb, top down map, obstacle map match
@@ -323,33 +343,33 @@ class data_prepare:
                         '''
                         imgs = [
                             rgb_vis,
-                            init_top_down_map_vis,
-                            top_down_map_vis,
-                            local_rtdm_vis,
-                            init_obstacle_map_vis,
-                            obstacle_map_vis,
-                            loacal_rom_vis,
+                            # init_top_down_map_vis,
+                            # top_down_map_vis,
+                            # local_rtdm_vis,
+                            # init_obstacle_map_vis,
+                            # obstacle_map_vis,
+                            # loacal_rom_vis,
                             target_map_vis,
                             target_no_gau_vis,
-                            target_map_recep_vis,
-                            local_rom_recep_vis,
+                            # target_map_recep_vis,
+                            # local_rom_recep_vis,
                             local_rom_recep_map_vis,
-                            top_down_map_waypoint,
+                            # top_down_map_waypoint,
                         ]
                         img_names = [
                             "rgb_vis",
-                            "init_top_down_map_vis",
-                            "top_down_map_vis",
-                            "local_rtdm_vis",
-                            "init_obstacle_map_vis",
-                            "obstacle_map_vis",
-                            "loacal_rom_vis",
+                            # "init_top_down_map_vis",
+                            # "top_down_map_vis",
+                            # "local_rtdm_vis",
+                            # "init_obstacle_map_vis",
+                            # "obstacle_map_vis",
+                            # "loacal_rom_vis",
                             "target_map_vis",
                             "target_no_gau_vis",
-                            "target_map_recep_vis",
-                            "local_rom_recep_vis",
+                            # "target_map_recep_vis",
+                            # "local_rom_recep_vis",
                             "local_rom_recep_map_vis",
-                            "top_down_map_waypoint",
+                            # "top_down_map_waypoint",
                         ]
                         # 保存图像
                         if save_img:
@@ -362,12 +382,12 @@ class data_prepare:
                                 cv2.imshow(img_name,img)
                             cv2.waitKey(1)
                 '''保存数据'''
-                local_top_down_map_s = np.stack(local_top_down_map_s,axis=0)
+                # local_top_down_map_s = np.stack(local_top_down_map_s,axis=0)
                 local_obstacle_map_s = np.stack(local_obstacle_map_s,axis=0)
                 local_end_recep_map_s = np.stack(local_end_recep_map_s,axis=0)
                 target_s = np.stack(target_s,axis=0)
                 recep_coord_s = np.stack(recep_coord_s,axis=0)
-                waypoint_s = np.stack(waypoint_s,axis=0)
+                # waypoint_s = np.stack(waypoint_s,axis=0)
                 # scene_ep_recep_grp_processed.create_dataset(name="local_top_down_map_s",data=local_top_down_map_s)
                 # scene_ep_recep_grp_processed.create_dataset(name="local_obstacle_map_s",data=local_obstacle_map_s)
                 # scene_ep_recep_grp_processed.create_dataset(name="target_s",data=target_s)
@@ -375,9 +395,9 @@ class data_prepare:
                 # scene_ep_recep_grp_processed.create_dataset(name="waypoint_s",data=waypoint_s)
 
                 # TODO
-                if "local_top_down_map_s" in scene_ep_recep_grp:
-                    scene_ep_recep_grp.__delitem__("local_top_down_map_s")
-                scene_ep_recep_grp.create_dataset(name="local_top_down_map_s",data=local_top_down_map_s)
+                # if "local_top_down_map_s" in scene_ep_recep_grp:
+                #     scene_ep_recep_grp.__delitem__("local_top_down_map_s")
+                # scene_ep_recep_grp.create_dataset(name="local_top_down_map_s",data=local_top_down_map_s)
                 if "local_obstacle_map_s" in scene_ep_recep_grp:
                     scene_ep_recep_grp.__delitem__("local_obstacle_map_s")
                 scene_ep_recep_grp.create_dataset(name="local_obstacle_map_s",data=local_obstacle_map_s)

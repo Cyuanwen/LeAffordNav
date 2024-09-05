@@ -1,16 +1,21 @@
-import pickle
+"""
+向一个文件夹写入数据，用来测试多进程脚本
+"""
+import argparse
 import json
-from pathlib import Path
-import os
 
-# pkl_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place_test/place_waypoint.pkl"
-pkl_file = "cyw/datasets/place_dataset_debug/val/heuristic_agent_place/place_waypoint.pkl"
-with open(pkl_file,"rb") as f:
-    data = pickle.load(f)
+data_file = "cyw/test_data/test"
 
-pkl_dir = str(Path(pkl_file).resolve().parent)
-json_file =  os.path.join(pkl_dir,"place_waypoint.json")
-with open(json_file,"w") as f:
-    json.dump(data,f,indent=2)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--from_index",type=int)
+    parser.add_argument("--to_index",type=int)
+    args = parser.parse_args()
 
-print("over")
+    episodes = list(range(args.from_index,args.to_index))
+    print(f"episodes is {episodes}")
+
+    with open(f"{data_file}/{args.from_index}_{args.to_index}.json","w") as f:
+        json.dump(episodes,f)
+
+        

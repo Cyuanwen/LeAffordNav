@@ -39,7 +39,10 @@ class EvaluationType(Enum):
 class OVMMEvaluator(PPOTrainer):
     """Class for creating vectorized environments, evaluating OpenVocabManipAgent on an episode dataset and returning metrics."""
 
-    def __init__(self, eval_config: DictConfig, data_dir=None) -> None:
+    def __init__(self, eval_config: DictConfig, data_dir=None, interval=None) -> None:
+        """
+            interval: @cyw
+        """
         self.metrics_save_freq = eval_config.EVAL_VECTORIZED.metrics_save_freq
         self.results_dir = os.path.join(
             eval_config.DUMP_LOCATION, "results", eval_config.EXP_NAME
@@ -50,6 +53,9 @@ class OVMMEvaluator(PPOTrainer):
             os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
         os.makedirs(self.videos_dir, exist_ok=True)
+
+        # @cyw
+        self.interval = interval
 
         super().__init__(eval_config)
 
@@ -225,14 +231,30 @@ class OVMMEvaluator(PPOTrainer):
 
         return aggregated_metrics
 
+    # def _write_results(
+    #     self, episode_metrics: Dict[str, Dict], aggregated_metrics: Dict[str, float]
+    # ) -> None:
+    #     """Writes metrics tracked by environment to a file."""
+    #     with open(f"{self.results_dir}/aggregated_results.json", "w") as f:
+    #         json.dump(aggregated_metrics, f, indent=4)
+    #     with open(f"{self.results_dir}/episode_results.json", "w") as f:
+    #         json.dump(episode_metrics, f, indent=4)
+
+    # @cyw
     def _write_results(
         self, episode_metrics: Dict[str, Dict], aggregated_metrics: Dict[str, float]
     ) -> None:
         """Writes metrics tracked by environment to a file."""
-        with open(f"{self.results_dir}/aggregated_results.json", "w") as f:
-            json.dump(aggregated_metrics, f, indent=4)
-        with open(f"{self.results_dir}/episode_results.json", "w") as f:
-            json.dump(episode_metrics, f, indent=4)
+        if self.interval is None:
+            with open(f"{self.results_dir}/aggregated_results.json", "w") as f:
+                json.dump(aggregated_metrics, f, indent=4)
+            with open(f"{self.results_dir}/episode_results.json", "w") as f:
+                json.dump(episode_metrics, f, indent=4)
+        else:
+            with open(f"{self.results_dir}/aggregated_results_{self.interval[0]}_{self.interval[1]}.json", "w") as f:
+                json.dump(aggregated_metrics, f, indent=4)
+            with open(f"{self.results_dir}/episode_results_{self.interval[0]}_{self.interval[1]}.json", "w") as f:
+                json.dump(episode_metrics, f, indent=4)
 
     def local_evaluate(
         self, agent: "Agent", num_episodes: Optional[int] = None

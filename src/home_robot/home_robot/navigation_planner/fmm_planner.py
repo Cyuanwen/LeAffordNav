@@ -216,7 +216,7 @@ class FMMPlanner:
                 "[FMM] Distance to fmm navigable goal pt =",
                 subset[self.du, self.du] * 5,
             )
-        stop = subset[self.du, self.du] < self.goal_tolerance
+        stop = subset[self.du, self.du] < self.goal_tolerance # subset 应该是以5cm为单位
         if self.debug:
             print("subset[self.du, self.du]", subset[self.du, self.du])
             print("self.goal_tolerance", self.goal_tolerance)

@@ -6,6 +6,7 @@
 
 import argparse
 import os
+from typing import Optional
 
 from evaluator import OVMMEvaluator
 from utils.config_utils import (
@@ -96,14 +97,37 @@ if __name__ == "__main__":
         default=None,
         help="whether to add suffix to the env config experiment name"
     )
+    parser.add_argument(
+        "--from_index",
+        default=None,
+        help="from episode id"
+    )
+    parser.add_argument(
+        "--to_index",
+        default=None,
+        help = "end episode index"
+    )
     args = parser.parse_args()
+
+    interval = None
+    if args.from_index is not None and args.to_index is not None:
+        interval = []
+        interval.append(int(args.from_index))
+        interval.append(int(args.to_index))
 
     if args.id_file is not None:
         import json
         with open(args.id_file,"r") as f:
             episode_ids = json.load(f)
+        if interval is not None:
+            episode_ids = episode_ids[interval[0]:interval[1]]
         args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
         # NOTE EXP_NAME_suffix与habitat.dataset.episode_ids={episode_ids}不能同时使用
+    
+    elif interval is not None:
+        episode_ids = list(range(interval[0],interval[1]))
+        args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
+    print(f"run episode is: habitat.dataset.episode_ids={episode_ids} ************")
 
     # get habitat config
     habitat_config, _ = get_habitat_config(
@@ -151,7 +175,7 @@ if __name__ == "__main__":
         agent = OpenVocabManipAgent(agent_config, device_id=device_id)
 
     # create evaluator
-    evaluator = OVMMEvaluator(env_config, data_dir=args.data_dir)
+    evaluator = OVMMEvaluator(env_config, data_dir=args.data_dir,interval=interval)
 
     # evaluate agent
     metrics = evaluator.evaluate(

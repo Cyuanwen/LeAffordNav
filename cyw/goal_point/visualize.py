@@ -188,3 +188,4 @@ def vis_local_map(local_map:np.array,recep_map:Optional[np.array],goal_map:Optio
     if goal_map is not None:
         local_map_vis[goal_map==1] = [0,255,0]
     return local_map_vis
+

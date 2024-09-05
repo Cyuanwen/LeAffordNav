@@ -288,6 +288,20 @@ src/home_robot/home_robot/mapping/map_utils.py
 
 50. recenter_local_map_and_pose_for_env 会移动 obstacle map的中心  src/home_robot/home_robot/mapping/semantic/categorical_2d_semantic_map_module.py
 
+51. nac_to_place 怎么计算：
+    距离和角度都在一定范围内，其中goal点设置为 viewpoint
+        return np.stack(
+            [
+                view_point.agent_state.position
+                for goal in episode.candidate_goal_receps
+                for view_point in goal.view_points
+            ],
+            axis=0,
+        )
+    朝向是计算到容器的中心的
+    """Angle between agent's forward vector and the vector from agent's position to the center of the closest candidate place receptacle"""
+    所以即使按照环境的viewpoint初始化，仍然有些情况没有朝向容器
+
 
 ## 各个模块坐标系整理
 1. top_down_map 模块
@@ -349,8 +363,9 @@ train:
 
  ## bug
  - 为什么设置了vovabulary FULL，结果还是只有哪几类物体？object_nav_agent的prepocess obs进行了处理，已修复
- - 现在的ESC 如果用gt segmentation的话，结果可能是混乱的，因为 gt segmentation的id 和标签不知道
+ - 现在的ESC 如果用gt segmentation的话，结果可能是混乱的，因为 gt segmentation的id 和标签不知道，已解决
  - 语义图似乎有问题，语义图上看着是障碍物，但是还是走过去了
+ - gaze 有bug， gaze 调用nav，但是如果gaze到的物体不是目标物体，就走近后发现不是，这时候会选择下一个目标，然后到下一个目标后，会跳过gaze
 
 ## git版本说明
 1. init 最初版本
