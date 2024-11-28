@@ -30,6 +30,7 @@ gdown https://drive.google.com/uc?id=1VzjU-P-dYp2_4Mnh_HsmJq6vng916NoC
 Or, you can download the model through browser: 
 https://drive.google.com/file/d/1VzjU-P-dYp2_4Mnh_HsmJq6vng916NoC/view?usp=sharing
 
+Put the model folder in the root directory of the home-robot project.
 
 # Set the environment variable
 Before running the code, make sure the environment variables are set correctly, such as:
