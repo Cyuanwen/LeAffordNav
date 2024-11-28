@@ -17,8 +17,19 @@ conda activate home_robot
 pip install -e .
 ```
 
-## link data
-Link the data to [data](data)
+## Link data
+Link your home-robot data to [data](data)
+
+## Download the model
+Download the model use command (recomand)
+```
+pip install gdown
+gdown https://drive.google.com/uc?id=1VzjU-P-dYp2_4Mnh_HsmJq6vng916NoC
+```
+
+Or, you can download the model through browser: 
+https://drive.google.com/file/d/1VzjU-P-dYp2_4Mnh_HsmJq6vng916NoC/view?usp=sharing
+
 
 # Set the environment variable
 Before running the code, make sure the environment variables are set correctly, such as:
