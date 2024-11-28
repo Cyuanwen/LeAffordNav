@@ -13,6 +13,8 @@ from habitat.gym.gym_definitions import _get_env_name
 from home_robot_sim.env.habitat_ovmm_env.habitat_ovmm_env import (
     HabitatOpenVocabManipEnv,
 )
+# @cyw
+from home_robot_sim.env.habitat_rearrange_env.habitat_rearrange_env import HabitatOpenVocabManipEnv as HabitatRearrangeEnv
 
 if TYPE_CHECKING:
     from omegaconf import DictConfig
@@ -38,6 +40,8 @@ def create_ovmm_env_fn(config: "DictConfig") -> HabitatOpenVocabManipEnv:
     habitat_env = env_class(config=habitat_config, dataset=dataset)
     habitat_env.seed(habitat_config.seed)
     env = HabitatOpenVocabManipEnv(habitat_env, config, dataset=dataset)
+    # @cyw
+    # env = HabitatRearrangeEnv(habitat_env, config, dataset=dataset)
     return env
 
 # @cyw

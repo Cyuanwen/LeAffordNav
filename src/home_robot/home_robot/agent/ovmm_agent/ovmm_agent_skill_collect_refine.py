@@ -11,6 +11,7 @@ next_recep情况的处理: 无法处理,如果设置 nav_to_recp,会导致程序
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 from datetime import datetime
+from email.policy import default
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
 
@@ -21,7 +22,7 @@ import cv2
 
 from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
-from home_robot.manipulation import HeuristicPlacePolicy_cyw #调试用
+from home_robot.manipulation import HeuristicPlacePolicy_cyw 
 from home_robot.manipulation import HeuristicPickPolicy, HeuristicPlacePolicy
 from home_robot.perception.constants import RearrangeBasicCategories
 from home_robot.perception.wrapper import (
@@ -84,9 +85,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self.semantic_sensor = None
         # @cyw
         self.gaze_goal = False
+        self.pre_global_goal = None
         self.arrive_gaze_goal = False
         self.gaze_policy = None
         self.gaze_recep_start_step = None
+        
 
         if config.GROUND_TRUTH_SEMANTICS == 1 and self.store_all_categories_in_map:
             # currently we get ground truth semantics of only the target object category and all scene receptacles from the simulator
@@ -136,7 +139,11 @@ class OpenVocabManipAgent(ObjectNavAgent):
             )
         # cyw
         elif config.AGENT.SKILLS.GAZE_OBJ.type == "heuristic" and not skip_both_gaze:
-            from home_robot.navigation_policy.gaze.gaze_policy import gaze_rec_policy
+            if getattr(config.AGENT.SKILLS.GAZE_OBJ,"version","new") == "old":
+                from home_robot.navigation_policy.gaze.gaze_policy_v2 import gaze_rec_policy
+                print("use old version of gaze policy")
+            else:
+                from home_robot.navigation_policy.gaze.gaze_policy import gaze_rec_policy
             self.gaze_policy = gaze_rec_policy(
                 config=config,
                 device=self.device
@@ -242,6 +249,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.gaze_policy is not None:
             self.gaze_policy.reset()
         self.gaze_goal= False
+        self.pre_global_goal = None
         self.arrive_gaze_goal = False
         self.gaze_recep_start_step = torch.tensor([0] * self.num_environments)
 
@@ -326,7 +334,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
         action = None
         if next_skill == Skill.NAV_TO_OBJ:
-            # action = DiscreteNavigationAction.NAVIGATION_MODE
+            action = DiscreteNavigationAction.NAVIGATION_MODE
             pass
         elif next_skill == Skill.GAZE_AT_OBJ:
             if not self.store_all_categories_in_map:
@@ -460,6 +468,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         # 地图一直在调整,可能是为了让agent位于地图中间?所以需要goal也跟着地图做调整
             gaze_goal_map = self.gaze_policy.act(info,obs)
             if gaze_goal_map is not None:
+                self.pre_global_goal = self.semantic_map.get_global_goal(0).copy()
                 self.semantic_map.set_global_goal_for_env(0, global_goal= None, local_goal=gaze_goal_map)
                 self.gaze_goal = True
             # info只在第一步的时候包含信息
@@ -488,11 +497,15 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 action, planner_info = super().nav2goal(obs)
                 if action == DiscreteNavigationAction.STOP:
                     self.arrive_gaze_goal = True
+                    self.semantic_map.set_global_goal_for_env(0, global_goal= self.pre_global_goal, local_goal=None)
                     action = DiscreteNavigationAction.EMPTY_ACTION
                 terminate = False
             else:
                 action, planner_info = super().act(obs) # 即使这样也没有完全朝向容器
                 # 或许不应该调用nav来完成朝向容器？
+                # action, planner_info = super().nav2goal(obs) # 这时候会规划不出来一条路径朝向目标点
+                # action, planner_info = super().towards2goal(obs)
+
                 if action == DiscreteNavigationAction.STOP:
                     terminate = True
                     self.gaze_goal = False
@@ -673,7 +686,13 @@ class OpenVocabManipAgent(ObjectNavAgent):
             )
         new_state = None
         if action in [None, DiscreteNavigationAction.STOP]:
-            new_state = Skill.NAV_TO_REC
+            # @cyw 
+            if obs.task_observations["prev_grasp_success"]:
+                new_state = Skill.NAV_TO_REC
+            else:
+                new_state = Skill.NAV_TO_OBJ
+            # 原本版本是直接导航到下一个容器
+            # new_state = Skill.NAV_TO_REC
             action = None
         return action, info, new_state
 

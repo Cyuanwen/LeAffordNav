@@ -49,3 +49,14 @@ def filter_depth(
     mask_out[filter_mask] = 0.0
 
     return mask_out
+
+# @cyw
+def filter_fardis(mask: np.ndarray, depth: np.ndarray, dis_threshold: Optional[float] = None):
+    """
+        过滤掉过远的mask
+    """
+    filter_mask = depth>dis_threshold
+    mask_out = mask.copy()
+    mask_out[filter_mask] = 0.0
+    return mask_out
+

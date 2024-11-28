@@ -28,7 +28,9 @@ datadump/
 !/src/home_robot/home_robot/datasets
 data/
 /models/
+model/
 grounded_sam/
+rearrange_data/
 
 # Archive files
 *.pkl

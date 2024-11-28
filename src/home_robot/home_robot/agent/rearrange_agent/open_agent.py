@@ -2,6 +2,9 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+'''
+开东西的agent, copy from src/home_robot/home_robot/agent/ovmm_agent/ovmm_agent.py
+'''
 from datetime import datetime
 from enum import IntEnum, auto
 from typing import Any, Dict, Optional, Tuple
@@ -11,7 +14,7 @@ import torch
 from trimesh import transformations as tra
 import cv2
 
-from home_robot.agent.objectnav_agent.objectnav_agent_gyzp import ObjectNavAgent
+from home_robot.agent.objectnav_agent.objectnav_agent import ObjectNavAgent
 from home_robot.core.interfaces import DiscreteNavigationAction, Observations
 from home_robot.manipulation import HeuristicPickPolicy, HeuristicPlacePolicy
 from home_robot.perception.constants import RearrangeBasicCategories
@@ -23,7 +26,7 @@ from home_robot.perception.wrapper import (
 
 # @cyw
 debug = False
-show_rgb = False
+show_rgb = True
 
 class Skill(IntEnum):
     NAV_TO_OBJ = auto()
@@ -134,6 +137,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 device_id=device_id,
             )
         self._fall_wait_steps = getattr(config.AGENT, "fall_wait_steps", 0)
+        self.log_detect =  getattr(
+                config.AGENT.VISION,"log_detect",False
+            )
         self.config = config
 
     def _get_info(self, obs: Observations) -> Dict[str, torch.Tensor]:
@@ -159,7 +165,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
             semantic_frame = np.concatenate(
                 [obs.rgb, obs.semantic[:, :, np.newaxis]], axis=2
             ).astype(np.uint8)
-        goal_name = obs.task_observations["goal_name"]
+        goal_name = obs.task_observations["start_recep_name"]
         info = {
             "semantic_frame": semantic_frame,
             "semantic_category_mapping": semantic_category_mapping,
@@ -175,7 +181,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
 
     def reset(self):
         """Initialize agent state."""
-        self.reset_vectorized()
+        self.reset_vectorized()            
 
     def reset_vectorized(self):
         """Initialize agent state."""
@@ -228,15 +234,17 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if self.nav_to_rec_agent is not None:
             self.nav_to_rec_agent.reset_vectorized_for_env(e)
 
-    def _init_episode(self, obs: Observations):
+    def _init_episode(self, obs: Observations,
+        current_episode_key:Optional[str] = None,
+    ):
         """
         This method is called at the first timestep of every episode before any action is taken.
         """
         if self.verbose:
             print("Initializing episode...")
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
-            add_room = getattr(self.config.AGENT.SEMANTIC_MAP,"record_room",False)
-            self._update_semantic_vocabs(obs, add_room=add_room)
+            # add_room = getattr(self.config.AGENT.SEMANTIC_MAP,"record_room",False)
+            self._update_semantic_vocabs(obs, add_room=False)
             if self.store_all_categories_in_map:
                 self._set_semantic_vocab(SemanticVocab.ALL, force_set=True)
             elif (
@@ -246,6 +254,9 @@ class OpenVocabManipAgent(ObjectNavAgent):
                 self._set_semantic_vocab(SemanticVocab.FULL, force_set=True)
             else:
                 self._set_semantic_vocab(SemanticVocab.SIMPLE, force_set=True)
+        # @cyw
+        if self.log_detect:
+            self.semantic_sensor.set_episode_key(current_episode_key=current_episode_key)
         # @cyw
         if self.config.AGENT.SKILLS.NAV_TO_OBJ.type == "heuristic_esc":
             if self.config.GROUND_TRUTH_SEMANTICS == 0:
@@ -310,16 +321,17 @@ class OpenVocabManipAgent(ObjectNavAgent):
         True by default
         :add_room if true, add  room in all vocabulary, False by default
         """
-        object_name = obs.task_observations["object_name"]
+        # object_name = obs.task_observations["object_name"]
         start_recep_name = obs.task_observations["start_recep_name"]
-        goal_recep_name = obs.task_observations["place_recep_name"]
+        # goal_recep_name = obs.task_observations["place_recep_name"]
+        # obj_id_to_name = {
+        #     0: object_name,
+        # }
         obj_id_to_name = {
-            0: object_name,
-        }
-        simple_rec_id_to_name = {
             0: start_recep_name,
-            1: goal_recep_name,
+            # 1: goal_recep_name,
         }
+        simple_rec_id_to_name = {}
 
         # Simple vocabulary contains only object and necessary receptacles
         simple_vocab = build_vocab_from_category_map(
@@ -353,12 +365,6 @@ class OpenVocabManipAgent(ObjectNavAgent):
         self, obs: Observations, info: Dict[str, Any]
     ) -> Tuple[DiscreteNavigationAction, Any]:
         action, planner_info = super().act(obs)
-
-        # @gyzp - print camera pose
-        # print("no rwyz", obs.camera_pose[:3, :3])
-        # roll, pitch, yaw = tra.euler_from_matrix(obs.camera_pose[:3, :3], "rzyx")
-        # print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
-
         # info overwrites planner_info entries for keys with same name
         info = {**planner_info, **info}
         self.timesteps[0] -= 1  # objectnav agent increments timestep
@@ -378,7 +384,7 @@ class OpenVocabManipAgent(ObjectNavAgent):
         if action == DiscreteNavigationAction.STOP:
             action = DiscreteNavigationAction.NAVIGATION_MODE
             info = self._switch_to_next_skill(e=0, info=info)
-        return action, info  
+        return action, info
 
     def _hardcoded_place(self):
         """Hardcoded place skill execution
@@ -583,11 +589,12 @@ class OpenVocabManipAgent(ObjectNavAgent):
         return action, info, None
 
     def act(
-        self, obs: Observations
+        self, obs: Observations,
+        current_episode_key: Optional[str] = None,
     ) -> Tuple[DiscreteNavigationAction, Dict[str, Any], Observations]:
         """State machine"""
         if self.timesteps[0] == 0:
-            self._init_episode(obs)
+            self._init_episode(obs,current_episode_key)
             
         if self.config.GROUND_TRUTH_SEMANTICS == 0:
             obs = self.semantic_sensor(obs)
@@ -603,10 +610,10 @@ class OpenVocabManipAgent(ObjectNavAgent):
             print(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
         action = None
         
-        # @cyw
-        if show_rgb:
-            # cv2.imshow("rgb")
-            print("debug")
+        # # @cyw
+        # if show_rgb:
+        #     # cv2.imshow("rgb")
+        #     print("debug")
      
         while action is None:
             if self.states[0] == Skill.NAV_TO_OBJ:

@@ -90,7 +90,9 @@ def gather_episode(data_dir:str,env:HabitatOpenVocabManipEnv):
             raise ValueError(
                 "count_dict[hash_str] is 0 when hash_str is called for the first time."
             )
-        if not (scene_id in receptacle_positions and episode.goal_recep_category in receptacle_positions[scene_id]):
+        # if not (scene_id in receptacle_positions and episode.goal_recep_category in receptacle_positions[scene_id]):
+        # NOTE
+        if not (scene_id in receptacle_positions and episode.start_recep_category in receptacle_positions[scene_id]):
             # 该场景的该容器之前没有记录过
             episode_ids.append(episode.episode_id)
 

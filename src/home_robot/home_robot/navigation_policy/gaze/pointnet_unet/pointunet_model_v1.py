@@ -161,7 +161,7 @@ class PointUNet(nn.Module):
         self, 
         map_encoder_type:str="resnet",
         map_encoder_pretrain:bool=True,
-        map_encoder_trainable:bool=True,
+        map_encoder_trainable:bool=False,
         input_resolution:int=160,
         map_output_dim: int=2048,
         map_layers:Tuple=(3,4,6,3),
@@ -247,7 +247,8 @@ class PointUNet(nn.Module):
         # pcd encoder
         self.pcd_encoder = PointNet2Wrapper(
             pcd_num_output,
-            ckp_path
+            ckp_path,
+            in_channel=3
         )
         # def __init__(self, num_output, ckpt_path, *args, **kwargs):
         self.pcd_encoder_out_dim = 1024
@@ -348,7 +349,7 @@ class PointUNet(nn.Module):
             # )
         x, x_im_feats = self.map_encoder(map)
 
-        # x = x.to(torch.float32)
+        x = x.to(torch.float32)
         # x_im_feats = x_im_feats.to(torch.float32)
 
         x = self.conv1(x)
@@ -366,14 +367,18 @@ class PointUNet(nn.Module):
     def forward(self, batch) -> Dict[str, torch.Tensor]:
         '''
         data format:
-            sample = {
-            "grid_map": torch.tensor(grid_map), (bs,2,w,h)
-            "pcd": torch.tensor(pcd), (bs,npoint,4)
-            "target": torch.tensor(target), (bs,w,h)
-        }
+            {
+            'map': map_data,
+            'pcd_coords': data['pcd_base_coord_s'],
+            'output': data['target_s']
+            }
+        map_data: b 3 h w
+        pcd_coords: b n c
         '''
-        pcd = batch["pcd"]
-        receptacle = batch["grid_map"]
+        pcd = batch["pcd_coords"]
+        if len(pcd.shape)>3:
+            pcd = pcd.squeeze()
+        receptacle = batch["map"]
 
         # # debug
         # # 判断输入数据是否有nan
@@ -409,5 +414,4 @@ class PointUNet(nn.Module):
         # # debug
         # if torch.isnan(x).any():
         #     print("debug")
-        x = x.squeeze(dim=1)
         return x

@@ -1,14 +1,17 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
-
+"""
+获得数据量大小
+"""
+from typing import Optional, Tuple
 import argparse
-import os
-from typing import Optional
 
-from evaluator import OVMMEvaluator
+from home_robot_sim.env.habitat_ovmm_env.habitat_ovmm_env import (
+    HabitatOpenVocabManipEnv,
+)
+import os
+home_root = os.environ.get("HOME_ROBOT_ROOT")
+import sys
+sys.path.append(f"{home_root}/projects/habitat_ovmm/")
+from evaluator import create_ovmm_env_fn
 from utils.config_utils import (
     create_agent_config,
     create_env_config,
@@ -16,18 +19,11 @@ from utils.config_utils import (
     get_omega_config,
 )
 
-from home_robot.agent.ovmm_agent.ovmm_agent import OpenVocabManipAgent
-from home_robot.agent.ovmm_agent.ovmm_exploration_agent import OVMMExplorationAgent
-from home_robot.agent.ovmm_agent.random_agent import RandomAgent
-# @cyw
-from home_robot.agent.ovmm_agent.ovmm_agent_pick_place import OpenVocabManipAgent_pick_place
-from home_robot.agent.ovmm_agent.ovmm_agent_skill_collect_refine import OpenVocabManipAgent as OpenVocabGazeManipAgent
-
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-# @cyw
-# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+def get_episode_count(
+    env: HabitatOpenVocabManipEnv,
+) -> Tuple[dict, int]:
+    num_episodes = len(env._dataset.episodes)
+    return num_episodes
 
 
 if __name__ == "__main__":
@@ -96,37 +92,14 @@ if __name__ == "__main__":
         default=None,
         help="whether to add suffix to the env config experiment name"
     )
-    parser.add_argument(
-        "--from_index",
-        default=None,
-        help="from episode id"
-    )
-    parser.add_argument(
-        "--to_index",
-        default=None,
-        help = "end episode index"
-    )
     args = parser.parse_args()
-
-    interval = None
-    if args.from_index is not None and args.to_index is not None:
-        interval = []
-        interval.append(int(args.from_index))
-        interval.append(int(args.to_index))
 
     if args.id_file is not None:
         import json
         with open(args.id_file,"r") as f:
             episode_ids = json.load(f)
-        if interval is not None:
-            episode_ids = episode_ids[interval[0]:interval[1]]
         args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
         # NOTE EXP_NAME_suffix与habitat.dataset.episode_ids={episode_ids}不能同时使用
-    
-    elif interval is not None:
-        episode_ids = list(range(interval[0],interval[1]))
-        args.overrides.append(f"habitat.dataset.episode_ids={episode_ids}")
-        print(f"run episode is: habitat.dataset.episode_ids={episode_ids} ************")
 
     # get habitat config
     habitat_config, _ = get_habitat_config(
@@ -151,33 +124,20 @@ if __name__ == "__main__":
         habitat_config, env_config, evaluation_type=args.evaluation_type
     )
 
-    # merge env config and baseline config to create agent config
-    agent_config = create_agent_config(env_config, baseline_config)
+    # Create an env
+    env = create_ovmm_env_fn(env_config)
 
-    # device_id = env_config.habitat.simulator.habitat_sim_v0.gpu_device_id
-    # # @cyw
-    device_id = 0
+    ep_num = get_episode_count(env)
 
-    # create agent
-    if args.agent_type == "random":
-        agent = RandomAgent(agent_config, device_id=device_id)
-    elif args.agent_type == "explore":
-        agent = OVMMExplorationAgent(agent_config, device_id=device_id, args=args)
-    # @cyw
-    elif args.agent_type == "zxy_pick_place": #使用zxy修改的agent
-        agent = OpenVocabManipAgent_pick_place(agent_config, device_id=device_id)
-    elif args.agent_type == "gaze_place":
-        agent = OpenVocabGazeManipAgent(agent_config, device_id=device_id)
-    else:
-        agent = OpenVocabManipAgent(agent_config, device_id=device_id)
+    print(ep_num)
 
-    # create evaluator
-    evaluator = OVMMEvaluator(env_config, data_dir=args.data_dir,interval=interval)
+    # ep_num = 1199
+    # print(1199)
+    # os.environ["EP_NUM"] = f"{ep_num}"
+    # print(f"export EP_NUM={ep_num}")
+    # 写入结果到文件  
+    os.makedirs("temp/",exist_ok=True)
+    with open(f"temp/ep_num.txt", "w") as f:  
+        f.write(f"{ep_num}")
 
-    # evaluate agent
-    metrics = evaluator.evaluate(
-        agent=agent,
-        evaluation_type=args.evaluation_type,
-        num_episodes=args.num_episodes,
-    )
-    print("Metrics:\n", metrics)
+    print("over")

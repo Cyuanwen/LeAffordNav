@@ -22,8 +22,8 @@ from home_robot.navigation_planner.fmm_planner import FMMPlanner
 import sys
 import os
 sys.path.append(os.getcwd())
-from cyw.test.psl_agent import psl_agent
-from cyw.test.psl_agent import recep_category_21, rooms
+from .psl_agent import psl_agent
+from .psl_agent import recep_category_21, rooms
 
 
 class ObjectNavFrontierExplorationPolicy(nn.Module):

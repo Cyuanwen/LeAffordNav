@@ -4,24 +4,25 @@ import torch.nn.functional as F
 from .pointnet2_utils import PointNetSetAbstraction
 
 class PointNet2Wrapper(nn.Module):
-    def __init__(self, num_output, ckpt_path, *args, **kwargs):
+    def __init__(self, num_output, ckpt_path, in_channel=4,*args, **kwargs):
         super().__init__(*args, **kwargs)
         self.num_output = num_output
-        self.pointnet2 = get_model()
-        ckpt = torch.load(ckpt_path)
-        self.pointnet2.load_state_dict(ckpt['model_state_dict'])
+        self.pointnet2 = get_model(in_channel=in_channel)
+        # 由于增加了一个维度，无法使用预训练模型
+        # ckpt = torch.load(ckpt_path)
+        # self.pointnet2.load_state_dict(ckpt['model_state_dict'])
 
-        # 冻结参数
-        for name, param in self.pointnet2.named_parameters():
-            # make the parameters not trainable
-            if name.startswith("fc3") or name.startswith("fc2") or name.startswith("fc1") or name.startswith("sa3"):
-                continue
-            param.requires_grad = False
+        # # 冻结参数
+        # for name, param in self.pointnet2.named_parameters():
+        #     # make the parameters not trainable
+        #     if name.startswith("fc3") or name.startswith("fc2") or name.startswith("fc1") or name.startswith("sa3"):
+        #         continue
+        #     param.requires_grad = False
 
-        # # @cyw 最后一层的分类头不要
-        # pointnets2_modules = list(self.pointnet2.children())[:-1]
-        # self.pointnet2 = torch.nn.Sequential(*pointnets2_modules)
-        # 这样删除后，调用的forward函数变了
+        # # # @cyw 最后一层的分类头不要
+        # # pointnets2_modules = list(self.pointnet2.children())[:-1]
+        # # self.pointnet2 = torch.nn.Sequential(*pointnets2_modules)
+        # # 这样删除后，调用的forward函数变了
 
     def forward(self, points):
         '''
@@ -35,9 +36,12 @@ class PointNet2Wrapper(nn.Module):
 
 
 class get_model(nn.Module):
-    def __init__(self, num_class=40, normal_channel=False):
+    # def __init__(self, num_class=40, normal_channel=False):
+    def __init__(self, in_channel=4, num_class=40, normal_channel=True):
         super(get_model, self).__init__()
-        in_channel = 6 if normal_channel else 3
+        # in_channel = 6 if normal_channel else 3
+        # in_channel = 6 if normal_channel else 4
+        # in_channel = 4 
         self.normal_channel = normal_channel
         self.sa1 = PointNetSetAbstraction(npoint=512, radius=0.1, nsample=32, in_channel=in_channel, mlp=[64, 64, 128],
                                           group_all=False)

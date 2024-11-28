@@ -173,6 +173,17 @@ class Categorical2DSemanticMapState:
             # global_map[e, :, lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]] = local_map[
             #     e
             # ]
+
+    # @cyw
+    def get_global_goal(self,e:int):
+        '''
+            获得全局 goal
+        '''
+        self.global_goal_map[e] = np.zeros((self.global_map_size, self.global_map_size))
+        lmb = self.lmb
+        self.global_goal_map[e,lmb[e, 0] : lmb[e, 1], lmb[e, 2] : lmb[e, 3]] = self.goal_map[e]
+        return self.global_goal_map[e]
+
     # @cyw
     def get_goal_from_global(self, e: int):
         # ref:

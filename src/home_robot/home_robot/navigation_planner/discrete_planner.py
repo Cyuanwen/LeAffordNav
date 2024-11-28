@@ -373,6 +373,189 @@ class DiscretePlanner:
 
         self.last_action = action
         return action, closest_goal_map, short_term_goal, dilated_obstacles
+    
+    # copy from plan()
+    # 规划朝向goal的转角，但是不移动
+    def plan_towards(
+        self,
+        obstacle_map: np.ndarray,
+        goal_map: np.ndarray,
+        frontier_map: np.ndarray,
+        sensor_pose: np.ndarray,
+        found_goal: bool,
+        debug: bool = True,
+        use_dilation_for_stg: bool = False,
+        timestep: int = None,
+        # cyw
+        not_change_goal:bool=False,
+        not_dilate_obstacle:bool=False
+    ) -> Tuple[DiscreteNavigationAction, np.ndarray]:
+        """Plan a low-level action.
+
+        Args:
+            obstacle_map: (M, M) binary local obstacle map prediction
+            goal_map: (M, M) binary array denoting goal location
+            sensor_pose: (7,) array denoting global pose (x, y, o)
+             and local map boundaries planning window (gx1, gx2, gy1, gy2)
+            found_goal: whether we found the object goal category
+            # @cyw
+            not_change_goal: 使得fmm不改变goal map
+            not_dilate_obstacle: 不对障碍物进行膨胀
+        Returns:
+            action: low-level action
+            closest_goal_map: (M, M) binary array denoting closest goal
+            location in the goal map in geodesic distance
+        """
+        # Reset timestep using argument; useful when there are timesteps where the discrete planner is not invoked
+        if timestep is not None:
+            self.timestep = timestep
+
+        self.last_pose = self.curr_pose
+        obstacle_map = np.rint(obstacle_map)
+
+        start_x, start_y, start_o, gx1, gx2, gy1, gy2 = sensor_pose
+        gx1, gx2, gy1, gy2 = int(gx1), int(gx2), int(gy1), int(gy2)
+        planning_window = [gx1, gx2, gy1, gy2]
+
+        start = [
+            int(start_y * 100.0 / self.map_resolution - gx1),
+            int(start_x * 100.0 / self.map_resolution - gy1),
+        ]
+        start = pu.threshold_poses(start, obstacle_map.shape)
+        start = np.array(start)
+
+        if debug:
+            print()
+            print("--- Planning ---")
+            print("Found goal:", found_goal)
+            print("Goal points provided:", np.any(goal_map > 0))
+
+        self.curr_pose = [start_x, start_y, start_o]
+        self.visited_map[gx1:gx2, gy1:gy2][
+            start[0] - 0 : start[0] + 1, start[1] - 0 : start[1] + 1
+        ] = 1
+
+        # 计算goal的中心位置作为short-term-goal
+        # 找到目标点的坐标
+        target_indices = np.argwhere(goal_map == 1)
+
+        # 计算目标中心点的坐标
+        short_term_goal = np.mean(target_indices, axis=0)
+        short_term_goal = short_term_goal.astype(int)
+        closest_goal_pt = short_term_goal
+
+        # 输出目标中心点的坐标
+        # print("目标中心点的坐标：", center_point)
+        # try:
+        #     # High-level goal -> short-term goal
+        #     # Extracts a local waypoint
+        #     # Defined by the step size - should be relatively close to the robot
+        #     (
+        #         short_term_goal,
+        #         closest_goal_map,
+        #         replan,
+        #         stop,
+        #         closest_goal_pt,
+        #         dilated_obstacles,
+        #     ) = self._get_short_term_goal(
+        #         obstacle_map,
+        #         np.copy(goal_map),
+        #         start,
+        #         planning_window,
+        #         plan_to_dilated_goal=use_dilation_for_stg,
+        #         frontier_map=frontier_map,
+        #         not_change_goal=not_change_goal,
+        #         not_dilate_obstacle = not_dilate_obstacle
+        #     )
+        # except Exception as e:
+        #     print("Warning! Planner crashed with error:", e)
+        #     return (
+        #         DiscreteNavigationAction.STOP,
+        #         np.zeros(goal_map.shape),
+        #         (0, 0),
+        #         np.zeros(goal_map.shape),
+        #     )
+        # Short term goal is in cm, start_x and start_y are in m
+        if debug:
+            print("Current pose:", start)
+            print("Short term goal:", short_term_goal)
+            print(
+                "  - delta =",
+                short_term_goal[0] - start[0],
+                short_term_goal[1] - start[1],
+            )
+            dist_to_short_term_goal = np.linalg.norm(
+                start - np.array(short_term_goal[:2])
+            )
+            print(
+                "Distance (m):",
+                dist_to_short_term_goal * self.map_resolution * CM_TO_METERS,
+            )
+        # t1 = time.time()
+        # print(f"[Planning] get_short_term_goal() time: {t1 - t0}")
+
+        # Normalize agent angle
+        angle_agent = pu.normalize_angle(start_o)
+
+        # If we found a short term goal worth moving towards...
+        stg_x, stg_y = short_term_goal
+        relative_stg_x, relative_stg_y = stg_x - start[0], stg_y - start[1]
+        angle_st_goal = math.degrees(math.atan2(relative_stg_x, relative_stg_y))
+        relative_angle_to_stg = pu.normalize_angle(angle_agent - angle_st_goal)
+
+        # Compute angle to the final goal
+        goal_x, goal_y = closest_goal_pt
+        angle_goal = math.degrees(math.atan2(goal_x - start[0], goal_y - start[1]))
+        relative_angle_to_closest_goal = pu.normalize_angle(angle_agent - angle_goal)
+
+        stop = True
+        # 不需要再走动
+        if debug:
+            # Actual metric distance to goal
+            distance_to_goal = np.linalg.norm(np.array([goal_x, goal_y]) - start)
+            distance_to_goal_cm = distance_to_goal * self.map_resolution
+            # Display information
+            print("-----------------")
+            print("Found reachable goal:", found_goal)
+            print("Stop:", stop)
+            print("Angle to goal:", relative_angle_to_closest_goal)
+            print("Distance to goal", distance_to_goal)
+            print(
+                "Distance in cm:",
+                distance_to_goal_cm,
+                ">",
+                self.min_goal_distance_cm,
+            )
+
+            m_relative_stg_x, m_relative_stg_y = [
+                CM_TO_METERS * self.map_resolution * d
+                for d in [relative_stg_x, relative_stg_y]
+            ]
+            print("continuous actions for exploring")
+            print("agent angle =", angle_agent)
+            print("angle stg goal =", angle_st_goal)
+            print("angle final goal =", relative_angle_to_closest_goal)
+            print(
+                m_relative_stg_x, m_relative_stg_y, "rel ang =", relative_angle_to_stg
+            )
+            print("-----------------")
+
+        action = self.get_action(
+            relative_stg_x,
+            relative_stg_y,
+            relative_angle_to_stg,
+            relative_angle_to_closest_goal,
+            start_o,
+            found_goal,
+            stop,
+            debug,
+        )
+
+        self.last_action = action
+        # @cyw 为了有一致的输出
+        closest_goal_map = goal_map
+        dilated_obstacles = obstacle_map
+        return action, closest_goal_map, short_term_goal, dilated_obstacles
 
     def get_action(
         self,

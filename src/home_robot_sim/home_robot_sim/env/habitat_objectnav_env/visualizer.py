@@ -75,6 +75,8 @@ class Visualizer:
             "ovmm" in self.episodes_data_path
             or "hm3d" in self.episodes_data_path
             or "mp3d" in self.episodes_data_path
+            # @cyw
+            or "replica_cad" in self.episodes_data_path
         )
         self.ground_truth_semantics = config.GROUND_TRUTH_SEMANTICS
 

@@ -12,10 +12,8 @@
 在第一步的时候记录 goal点，并设置为类参数，之后的步数调用nav_planner算法即可
 
 updata: 使用新的模型，有point cloud data 作为输入
-对v2的问题：1. 用mask来选择应该关注的point，有些情况下没有标注出mask
-2. 并且点云数据的归一化存在问题
-做了改进：1. 用mask来标记要做的点云
-2. 用截断方法来归一化（训练的dice系数只高了一个点不到）
+但是point cloud 的数据有些问题：用mask来选择应该关注的point，有些情况下没有标注出mask
+并且点云数据的归一化存在问题
 '''
 import torch
 from loguru import logger
@@ -32,7 +30,7 @@ from home_robot.core.interfaces import (
 )
 # from .unet import UNet # TODO 调试完毕改为简洁模式
 from home_robot.navigation_policy.gaze.unet import UNet
-from home_robot.navigation_policy.gaze.pointnet_unet.pointunet_model import PointUNet
+from home_robot.navigation_policy.gaze.pointnet_unet.pointunet_model_v1 import PointUNet
 
 import sys
 import os
@@ -47,12 +45,6 @@ import matplotlib.pyplot as plt
 from typing import Optional
 
 THRESHOLD = 0.5
-MIN_X = -5
-MAX_X = 5
-MIN_Y = 0
-MAX_Y = 10
-MIN_Z = 0
-MAX_Z = 10 # 高度距离一般不加以限制
 
 show_image = False
 save_image = False
@@ -92,12 +84,10 @@ def vis_pcd(point_cloud_data,ax):
     x = point_cloud_data[:, 0]
     y = point_cloud_data[:, 1]
     z = point_cloud_data[:, 2]
-    c = point_cloud_data[:, 3]
+    # c = point_cloud_data[:, 3]
 
     # 绘制点云数据
-    # ax.scatter(x, y, z, cmap='viridis', marker='o')
-    # 绘制点云数据
-    ax.scatter(x, y, z, c=c,cmap='viridis', marker='o')
+    ax.scatter(x, y, z, cmap='viridis', marker='o')
 
 def show_results(img_ds, preds, num_rows=1, show_rgb=True,save_dir="batch_show.jpg" ):
     """
@@ -108,8 +98,8 @@ def show_results(img_ds, preds, num_rows=1, show_rgb=True,save_dir="batch_show.j
     else:
         num_cols=3
     fig = plt.figure(figsize=(16,5))    
-    grid_map = img_ds['grid_map'][0]
-    pcd = img_ds['pcd'][0]
+    grid_map = img_ds['map'][0]
+    pcd = img_ds['pcd_coords'][0]
     pred = preds
     # pred = torch.sigmoid(pred)
         
@@ -154,19 +144,6 @@ def show_results(img_ds, preds, num_rows=1, show_rgb=True,save_dir="batch_show.j
     fig.savefig(save_dir)
     # return fig
 
-def norm_data(data,lower_bound,upper_bound):
-    truncated_data = torch.clamp(data, lower_bound, upper_bound)
-    normalized_data = (truncated_data - lower_bound) / (upper_bound - lower_bound)
-    return normalized_data
-
-def norm_pcd(pcd:torch.tensor):
-    x = pcd[:,:,0]
-    y = pcd[:,:,1]
-    z = pcd[:,:,2]
-    pcd[:,:,0] = norm_data(x, MIN_X, MAX_X)
-    pcd[:,:,1] = norm_data(y, MIN_Y, MAX_Y)
-    pcd[:,:,2] = norm_data(z, MIN_Z, MAX_Z)
-    return pcd
 
 class gaze_rec_policy:
     '''
@@ -178,7 +155,7 @@ class gaze_rec_policy:
         device,
         model_type:str="PointUNet", # choose from PointUNet and UNet
         verbose:bool=True,
-        pointnet_ckp:str="model/pointnet_v2/unet-178-0.684.ckpt"
+        pointnet_ckp:str="model/pointnet_v1/PointUnet-81-0.676.ckpt"
     ) -> None:
         self.map_prepare = map_prepare(config)
         # 加载模型 参考 https://lightning.ai/docs/pytorch/stable/deploy/production_intermediate.html
@@ -225,14 +202,11 @@ class gaze_rec_policy:
         # 下采样
         pcd_base_coords = pcd_base_coords[::4,::4,:]
         # 归一化  
-        pcd_base_coords = pcd_base_coords.reshape((-1,4))      
-        # 归一化
-        # pcd_base_coords, _, _ = WorldSpaceToBallSpace(pcd_base_coords)
+        pcd_base_coords = pcd_base_coords.reshape((-1,3))      
+        pcd_base_coords, _, _ = WorldSpaceToBallSpace(pcd_base_coords)
         # 全部点输入爆内存，参考 https://github.com/yanx27/Pointnet_Pointnet2_pytorch
-        # 先对点云进行采样
         pcd_base_coords = farthest_point_sample(pcd_base_coords, 1024)
         return pcd_base_coords
-
 
     def act(self,
         info,
@@ -265,7 +239,7 @@ class gaze_rec_policy:
         loacal_recep_map = torch.from_numpy(loacal_recep_map)
         input_map = torch.stack((loacal_obstacle,loacal_recep_map),axis=0)
         input_map = input_map.squeeze(dim=1)
-        input_map = input_map.unsqueeze(dim=0) # bs 2 w h
+        input_map = input_map.unsqueeze(dim=0)
         input_map = input_map.to(torch.device(self.device))
         if self.model_type == "PointUNet":
             # 输入数据要求
@@ -273,12 +247,11 @@ class gaze_rec_policy:
             # 'pcd_coords': data['pcd_base_coord_s']
             pcd_coords = self.get_pcd(obs)
             pcd_coords = torch.from_numpy(pcd_coords)
-            pcd_coords = pcd_coords.unsqueeze(dim=0) # bs num_point 4
-            pcd_coords = norm_pcd(pcd_coords)
+            pcd_coords = pcd_coords.unsqueeze(dim=0)
             pcd_coords = pcd_coords.to(torch.device(self.device))
             input = {
-                'grid_map': input_map,
-                'pcd': pcd_coords,
+                'map': input_map,
+                'pcd_coords': pcd_coords,
                 'rgb':obs.rgb,
             }
             local_goal_map = self.model(input)
@@ -290,7 +263,7 @@ class gaze_rec_policy:
         if local_goal_map.sum()==0:
             return None #寻找下一个recep
         # 转换到local map上
-        local_goal_map = local_goal_map.cpu().numpy()[0]
+        local_goal_map = local_goal_map.cpu().numpy()[0][0]
         goal_map = self.map_prepare.inverse_rotate_map(
             local_goal_map,
             sensor_pose,
@@ -330,9 +303,7 @@ if __name__ == "__main__":
         "--baseline_config_path",
         type=str,
         # default="cyw/configs/debug_config/agent/heuristic_agent_nav_place.yaml",
-        default=\
-            "cyw/configs/agent/esc_yolo_gaze_place_cyw_agent_0.4_0.8.yaml",
-            # "cyw/configs/agent/heuristic_agent_esc_yolo_nav_gaze_place_cyw.yaml",
+        default="cyw/configs/agent/heuristic_agent_esc_yolo_nav_gaze_place_cyw.yaml",
         help="Path to config yaml",
     )
     args = parser.parse_args()

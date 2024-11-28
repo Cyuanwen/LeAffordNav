@@ -41,7 +41,7 @@ OBSTACLE_HEIGHT = 0.2 # 如果某个点上面0.2m距离范围内有物体，则�
 go_to_place_add_step = 2 # 原本一步完成，现在多加 go_to_place_add_step 步，共需 go_to_place_add_step+1 步
 debug = True
 save_image = True
-img_dir = 'cyw/test_data/place_point'
+img_dir = 'out_put_image/place_point'
 
 
 class HeuristicPlacePolicy_cyw(nn.Module):

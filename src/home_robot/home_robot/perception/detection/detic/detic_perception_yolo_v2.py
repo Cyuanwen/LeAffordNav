@@ -12,8 +12,6 @@
     由于vocab变量外部代码也会使用，这里将yolo的结果映射到 detic vocab
     TODO: 让detic识别task related objects, rooms (rooms单独识别), yolo识别recep
     相比于 src/home_robot/home_robot/perception/detection/detic/detic_perception_yolo_v1.py： 使用detic单独识别recep, room, 并用yolo识别所有不相关的物体
-    相比于 src/home_robot/home_robot/perception/detection/detic/detic_perception_yolo_v2.py：
-    对object，start_recep和end_recep设置不同的阈值，object和start_recep的阈值低，避免漏掉物体，end_recep阈值高，避免放错位置
 '''
 
 import argparse
@@ -33,7 +31,7 @@ from detectron2.utils.visualizer import ColorMode, Visualizer
 
 from home_robot.core.abstract_perception import PerceptionModule
 from home_robot.core.interfaces import Observations
-from home_robot.perception.detection.utils import filter_depth, overlay_masks, filter_fardis
+from home_robot.perception.detection.utils import filter_depth, overlay_masks
 # @cyw
 from ultralytics import YOLO
 from PIL import Image
@@ -44,7 +42,6 @@ debug = False
 # YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe"] #训练场景没有这三类数据，yolo识别不了
 # 根据最新版yolo验证结果，增加几类
 YOLO_EXTRA = ["sink","trunk","filing_cabinet","wardrobe","serving_cart","stand"] #训练场景没有这三类数据，yolo识别不了
-END_RECEP_THRESHOLD = 0.8
 # @gyzp
 # sys.path.append(r"gyzp/utils/preception")
 # from detect_error import DetectionErrorWrapper
@@ -85,7 +82,8 @@ BUILDIN_METADATA_PATH = {
     "coco": "coco_2017_val",
 }
 
-YOLO_CHECKPOINT_FILE = "model/perception/best.pt"
+YOLO_CHECKPOINT_FILE = "cyw/data/models/perception/train2/weights/best.pt"
+RECORD_PATH_FILE = 'gyzp/output/detect_error/yolo_only'
 
 def get_clip_embeddings(vocabulary, prompt="a "):
     text_encoder = build_text_encoder(pretrain=True)
@@ -373,23 +371,6 @@ class DeticPerception(PerceptionModule):
         scores_new = scores[index]
         return masks_new,new_class_ids,scores_new
 
-    def filter_end_recep(self,masks,class_idcs,scores):
-        '''
-            过滤掉 end recep 阈值小于 3 的实例
-            NOTE: 只能用于detic的识别结果
-        '''
-        index = []
-        new_class_ids = []
-        for idx, class_id in enumerate(class_idcs):
-            if not (class_id == 3 and scores[idx]<END_RECEP_THRESHOLD):
-                index.append(idx)
-                new_class_ids.append(class_id)
-            else:
-                print("debug")
-        masks_new = masks[index,:,:]
-        scores_new = scores[index]
-        return masks_new,new_class_ids,scores_new
-
     # @cyw
     def combine_results(self,pred,yolo_pred,yolo_main,height, width):
         '''将detic的预测结果和yolo的预测结果结合起来
@@ -403,9 +384,6 @@ class DeticPerception(PerceptionModule):
         masks = pred["instances"].pred_masks.cpu().numpy()# n,w,h
         class_idcs = pred["instances"].pred_classes.cpu().numpy() # n
         scores = pred["instances"].scores.cpu().numpy() # n
-    
-        # 过滤掉阈值小于 END_RECEP_THRESHOLD 的 end_recep实例
-        masks,class_idcs,scores = self.filter_end_recep(masks,class_idcs,scores)
 
         # 将结果合并起来
         if yolo_main:
@@ -439,8 +417,6 @@ class DeticPerception(PerceptionModule):
         obs: Observations,
         depth_threshold: Optional[float] = None,
         draw_instance_predictions: bool = True,
-        filter_far: bool = True,
-        farest_dis: Optional[float] = 4,
     ) -> Observations:
         """
         Arguments:
@@ -541,18 +517,6 @@ class DeticPerception(PerceptionModule):
                 room_masks = np.array(
                 [filter_depth(mask, depth, depth_threshold) for mask in room_masks]
             )
-            # 以上代码是过滤掉距离均值过大的mask，默认设置中并没有使用
-        # @cyw
-        # 过滤掉过远的mask
-        if filter_far:
-            masks = np.array(
-                [filter_fardis(mask, depth, farest_dis) for mask in masks]
-            )
-            if self.add_rooms:
-                room_masks = np.array(
-                [filter_fardis(mask, depth, farest_dis) for mask in room_masks]
-            )
-            
 
         semantic_map, instance_map = overlay_masks(masks, class_idcs, (height, width))
         if self.add_rooms:
